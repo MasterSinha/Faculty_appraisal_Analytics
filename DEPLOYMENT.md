@@ -1,25 +1,25 @@
 # VM Docker Deployment
 
-## Files
+This project now uses one production Docker image:
 
-- `Dockerfile` builds the FastAPI backend.
-- `frontend/Dockerfile` builds the Vite app and serves it with Nginx.
-- `frontend/nginx.conf` proxies `/api` and `/health` to FastAPI.
-- `docker-compose.yml` runs both services.
+- Stage 1 builds the React dashboard from `frontend/`.
+- Stage 2 runs FastAPI with Gunicorn/Uvicorn.
+- The compiled React bundle is copied into `frontend/dist`.
+- FastAPI serves `/admin/research-analytics` and proxies no database secrets to the browser.
 
-## Configure Backend Secrets
+## Environment
 
 Create `Backend/.env` on the VM:
 
 ```env
 DATABASE_URL=postgresql://USERNAME:PASSWORD@HOST:PORT/DATABASE_NAME
 JWT_SECRET_KEY=replace_with_secure_secret
-ALLOWED_ORIGINS=http://YOUR_VM_IP_OR_DOMAIN
+ALLOWED_ORIGINS=http://YOUR_VM_IP_OR_DOMAIN:8080
 ```
 
-Do not put `DATABASE_URL` in the frontend `.env`.
+Do not put `DATABASE_URL` in any frontend env file.
 
-## Deploy
+## Build And Run
 
 From the `Backend` directory:
 
@@ -30,30 +30,34 @@ docker compose up -d --build
 Open:
 
 ```text
-http://YOUR_VM_IP_OR_DOMAIN/admin/research-analytics
+http://YOUR_VM_IP_OR_DOMAIN:8080/admin/research-analytics
 ```
 
-The React app is served by Nginx on port `80`. API calls go to the same origin at `/api/v1/research-analytics` and are proxied internally to FastAPI.
+Health check:
+
+```bash
+curl http://YOUR_VM_IP_OR_DOMAIN:8080/health
+```
+
+Authenticated API example:
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+  http://YOUR_VM_IP_OR_DOMAIN:8080/api/v1/research-analytics/overview
+```
 
 ## Useful Commands
 
 ```bash
-docker compose logs -f backend
-docker compose logs -f frontend
+docker compose logs -f
 docker compose ps
 docker compose restart
 docker compose down
 ```
 
-## Verify
+## Direct Docker Commands
 
 ```bash
-curl http://YOUR_VM_IP_OR_DOMAIN/health
-```
-
-Authenticated analytics endpoints require a valid JWT:
-
-```bash
-curl -H "Authorization: Bearer YOUR_TOKEN" \
-  http://YOUR_VM_IP_OR_DOMAIN/api/v1/research-analytics/overview
+docker build -t faculty-analytics .
+docker run --env-file .env -p 8080:8080 faculty-analytics
 ```
