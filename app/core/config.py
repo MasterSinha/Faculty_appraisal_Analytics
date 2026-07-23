@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     database_url: str = Field(..., alias="DATABASE_URL")
     jwt_secret_key: str = Field(..., alias="JWT_SECRET_KEY")
     allowed_origins: str = Field("http://localhost:5173", alias="ALLOWED_ORIGINS")
+    require_auth: bool = Field(True, alias="REQUIRE_AUTH")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
@@ -20,4 +21,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

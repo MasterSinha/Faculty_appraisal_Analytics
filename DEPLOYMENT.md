@@ -30,7 +30,7 @@ docker compose up -d --build
 Open:
 
 ```text
-http://YOUR_VM_IP_OR_DOMAIN:8080/admin/research-analytics
+http://YOUR_VM_IP_OR_DOMAIN:8080/Analytics
 ```
 
 Health check:

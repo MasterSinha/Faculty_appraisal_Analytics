@@ -1,18 +1,26 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const API_PREFIX = `${API_BASE_URL}/api/v1/research-analytics`
 
+function buildUrl(path, params = {}) {
+  const base = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
+  const url = new URL(`${API_PREFIX}${path}`, base)
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      url.searchParams.set(key, value)
+    }
+  })
+
+  return url
+}
+
 function authHeaders() {
   const token = localStorage.getItem('access_token') || localStorage.getItem('token')
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
 async function request(path, params = {}) {
-  const url = new URL(`${API_PREFIX}${path}`)
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      url.searchParams.set(key, value)
-    }
-  })
+  const url = buildUrl(path, params)
 
   const response = await fetch(url, { headers: authHeaders() })
   if (!response.ok) {
@@ -34,13 +42,7 @@ export const researchAnalyticsApi = {
   topJournals: (limit = 10) => request('/top-journals', { limit }),
   filters: () => request('/filters'),
   exportUrl: (params = {}) => {
-    const url = new URL(`${API_PREFIX}/export`)
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        url.searchParams.set(key, value)
-      }
-    })
-    return url.toString()
+    return buildUrl('/export', params).toString()
   },
   authHeaders,
 }
