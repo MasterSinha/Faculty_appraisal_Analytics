@@ -11,9 +11,11 @@ settings = get_settings()
 
 
 def get_sync_database_url(database_url: str) -> str:
-    """Allow reuse of an asyncpg DATABASE_URL with the sync SQLAlchemy engine."""
+    """Ensure database_url uses psycopg2 driver for synchronous SQLAlchemy engine."""
     if database_url.startswith("postgresql+asyncpg://"):
         return database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+    if database_url.startswith("postgresql://"):
+        return database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
     return database_url
 
 
