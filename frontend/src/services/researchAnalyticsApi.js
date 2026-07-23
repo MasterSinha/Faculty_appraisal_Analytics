@@ -24,7 +24,16 @@ async function request(path, params = {}) {
 
   const response = await fetch(url, { headers: authHeaders() })
   if (!response.ok) {
-    const message = response.status === 401 ? 'Sign in to view research analytics.' : 'Unable to load research analytics.'
+    let detail = ''
+    try {
+      const errBody = await response.json()
+      detail = errBody.detail || ''
+    } catch {
+      // ignore json parse error
+    }
+    const message = response.status === 401
+      ? 'Authentication token required or invalid.'
+      : (detail ? `[HTTP ${response.status}] ${detail}` : `[HTTP ${response.status}] Unable to load research analytics.`)
     throw new Error(message)
   }
   return response.json()

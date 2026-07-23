@@ -49,7 +49,7 @@ export default function ResearchAnalyticsDashboard() {
       {error && !loading && (
         <div className={demoMode ? 'notice-banner' : 'error-banner'}>
           <strong>{error}</strong>
-          <span>For live data, set `VITE_API_BASE_URL`, start FastAPI, and store a valid admin/director/dean/registrar/VC JWT as `access_token`.</span>
+          <span>For live database connection, ensure `REQUIRE_AUTH=false` in `.env` and PostgreSQL is reachable.</span>
         </div>
       )}
 
