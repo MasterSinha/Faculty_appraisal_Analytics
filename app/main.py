@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import api_v1_router
+from app.api.v1.endpoints.faculty_research_analytics import router as faculty_research_analytics_router
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -27,6 +28,7 @@ app.add_middleware(
 )
 
 app.include_router(api_v1_router)
+app.include_router(faculty_research_analytics_router)
 
 
 @app.get("/health", tags=["Health"])

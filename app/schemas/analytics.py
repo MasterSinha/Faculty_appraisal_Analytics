@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -56,3 +56,35 @@ class PublicationTrendItem(BaseModel):
 class JournalItem(BaseModel):
     journal: str = Field(..., description="Journal name")
     total: int = Field(0, description="Publication count")
+
+
+class PatentSummaryItem(BaseModel):
+    status: str = Field(..., description="Normalized patent status (Granted, Filed, Pending, etc.)")
+    total: int = Field(0, description="Total patent count")
+    grant_rate: float = Field(0.0, description="Grant percentage")
+
+
+class TeachingResearchBalanceItem(BaseModel):
+    faculty_email: str = Field(..., description="Faculty email")
+    faculty_name: str = Field(..., description="Faculty name")
+    department: str = Field(..., description="Department")
+    teaching_score: float = Field(0.0, description="Teaching performance score")
+    research_score: float = Field(0.0, description="Research performance score")
+    quadrant: str = Field(..., description="Quadrant: Balanced Leaders, Teaching Focused, Research Focused, Development Opportunity")
+
+
+class DynamicInsightItem(BaseModel):
+    title: str = Field(..., description="Short insight title")
+    explanation: str = Field(..., description="One-sentence actionable explanation")
+    supporting_metric: str = Field(..., description="Traceable quantitative metric")
+    severity: str = Field("neutral", description="positive, warning, neutral, risk, opportunity")
+    drill_down_route: Optional[str] = Field(None, description="Navigation route")
+
+
+class DataQualityAlertItem(BaseModel):
+    alert_type: str = Field(..., description="Alert category label")
+    severity: str = Field(..., description="Critical, Warning, Informational")
+    category: str = Field(..., description="Research activity category")
+    title: str = Field(..., description="Record title")
+    faculty_email: str = Field(..., description="Associated faculty email")
+    description: str = Field(..., description="Detailed description")

@@ -1,5 +1,4 @@
 from typing import Any
-
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -46,6 +45,18 @@ class ResearchAnalyticsService:
     def filters(self) -> dict[str, Any]:
         return self._safe_call(self.repository.filters)
 
+    def insights(self) -> list[dict[str, Any]]:
+        return self._safe_call(self.repository.insights)
+
+    def patents_summary(self) -> list[dict[str, Any]]:
+        return self._safe_call(self.repository.patents_summary)
+
+    def teaching_balance(self) -> list[dict[str, Any]]:
+        return self._safe_call(self.repository.teaching_balance)
+
+    def data_quality(self) -> list[dict[str, Any]]:
+        return self._safe_call(self.repository.data_quality)
+
     def export_rows(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         return self.faculty_summary(1, 10000, filters)["items"]
 
@@ -55,4 +66,3 @@ class ResearchAnalyticsService:
             return function(*args, **kwargs)
         except (AnalyticsSchemaError, SQLAlchemyError) as exc:
             raise RuntimeError("Analytics data is unavailable. Check database connectivity and schema mapping.") from exc
-

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import verify_analytics_role
 from app.database import get_db
+from app.services.faculty_research_analytics_service import FacultyResearchAnalyticsService
 from app.services.research_analytics_service import ResearchAnalyticsService
 
 security = HTTPBearer(auto_error=False)
@@ -22,3 +23,10 @@ def get_analytics_service(
 ) -> ResearchAnalyticsService:
     """FastAPI Dependency for ResearchAnalyticsService."""
     return ResearchAnalyticsService(db)
+
+
+def get_faculty_research_analytics_service(
+    db: Session = Depends(get_db),
+) -> FacultyResearchAnalyticsService:
+    """FastAPI Dependency for faculty email based research analytics."""
+    return FacultyResearchAnalyticsService(db)

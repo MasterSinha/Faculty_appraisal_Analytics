@@ -1,10 +1,14 @@
 from fastapi import APIRouter, Depends, Query
 from app.api.deps import get_analytics_service, require_analytics_role
 from app.schemas.analytics import (
+    DataQualityAlertItem,
+    DynamicInsightItem,
     FilterResponse,
     IndexingDistributionItem,
     OverviewResponse,
+    PatentSummaryItem,
     ScoreComparisonResponse,
+    TeachingResearchBalanceItem,
 )
 from app.services.research_analytics_service import ResearchAnalyticsService
 
@@ -82,3 +86,39 @@ def get_filters(
 ):
     """Retrieve available dynamic dropdown filter options."""
     return service.filters()
+
+
+@router.get("/insights")
+def get_insights(
+    _: dict = Depends(require_analytics_role),
+    service: ResearchAnalyticsService = Depends(get_analytics_service),
+):
+    """Generate concise dynamic management insights."""
+    return {"data": service.insights()}
+
+
+@router.get("/patents/summary")
+def get_patents_summary(
+    _: dict = Depends(require_analytics_role),
+    service: ResearchAnalyticsService = Depends(get_analytics_service),
+):
+    """Retrieve patent and IPR distribution summary."""
+    return {"data": service.patents_summary()}
+
+
+@router.get("/teaching-balance")
+def get_teaching_balance(
+    _: dict = Depends(require_analytics_role),
+    service: ResearchAnalyticsService = Depends(get_analytics_service),
+):
+    """Retrieve Teaching versus Research balance quadrant mapping."""
+    return {"data": service.teaching_balance()}
+
+
+@router.get("/data-quality")
+def get_data_quality(
+    _: dict = Depends(require_analytics_role),
+    service: ResearchAnalyticsService = Depends(get_analytics_service),
+):
+    """Retrieve data quality verification alerts."""
+    return {"data": service.data_quality()}
