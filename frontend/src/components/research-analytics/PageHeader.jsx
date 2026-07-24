@@ -6,7 +6,7 @@ export default function PageHeader({ title, description, lastRefreshed, onRefres
   return (
     <header className="page-header">
       <div className="header-left">
-        <button className="mobile-toggle" type="button" onClick={onMobileMenuToggle}>
+        <button className="mobile-toggle" type="button" onClick={onMobileMenuToggle} aria-label="Open menu">
           ☰
         </button>
         <div>
@@ -18,14 +18,15 @@ export default function PageHeader({ title, description, lastRefreshed, onRefres
 
       <div className="header-actions">
         <span className="last-refreshed">Refreshed: {lastRefreshed || 'Just now'}</span>
+
         <button type="button" className="btn-secondary" onClick={onRefresh} title="Refresh data from database">
           ↻ Refresh
         </button>
         <button type="button" className="btn-secondary" onClick={onExportCsv} title="Export CSV data">
-          Export CSV
+          ↓ CSV
         </button>
         <button type="button" className="btn-primary" onClick={onExportXlsx} title="Export Excel Report">
-          Export Excel
+          ↓ Excel
         </button>
         <button type="button" className="btn-help" onClick={() => setShowHelp(!showHelp)} title="Metric Definitions">
           ? Help
@@ -33,13 +34,13 @@ export default function PageHeader({ title, description, lastRefreshed, onRefres
       </div>
 
       {showHelp && (
-        <div className="metric-help-dialog">
+        <div className="metric-help-dialog" role="dialog" aria-modal="true" aria-label="Metric Definitions">
           <div className="help-content">
-            <h3>Metric Definitions & Guidance</h3>
+            <h3>Metric Definitions &amp; Guidance</h3>
             <ul>
               <li><strong>Publication Participation Rate:</strong> Percentage of active faculty with at least 1 valid journal publication.</li>
               <li><strong>Papers per Active Faculty:</strong> Total valid journal papers divided by total active faculty.</li>
-              <li><strong>Research Diversity Score:</strong> Count of distinct research categories (Journals, Books, Patents, Projects, Guidance) contributed by a faculty member.</li>
+              <li><strong>Research Diversity Score:</strong> Count of distinct research categories contributed by a faculty member.</li>
               <li><strong>Validation Ratio:</strong> Final approved VC Score as a percentage of self-reported score.</li>
             </ul>
             <button type="button" onClick={() => setShowHelp(false)}>Close</button>
