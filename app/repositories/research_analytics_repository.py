@@ -156,7 +156,24 @@ class ResearchAnalyticsRepository:
         statement = select(year_expr.label("year"), func.count().label("total")).group_by(year_expr).order_by(year_expr)
         if faculty_id is not None and faculty_col:
             statement = statement.where(journal.c[faculty_col] == faculty_id)
-        return [{"year": int(row.year), "total_papers": int(row.total)} for row in self.db.execute(statement).all() if row.year]
+
+        results = []
+        for row in self.db.execute(statement).all():
+            if not row.year:
+                continue
+            try:
+                raw_str = str(row.year).strip().split("-")[0].split("/")[0]
+                cleaned_year = int(float(raw_str))
+                if 1900 <= cleaned_year <= 2100:
+                    results.append({"year": cleaned_year, "total_papers": int(row.total)})
+            except (ValueError, TypeError):
+                continue
+
+        aggregated: Dict[int, int] = {}
+        for item in results:
+            aggregated[item["year"]] = aggregated.get(item["year"], 0) + item["total_papers"]
+
+        return [{"year": y, "total_papers": aggregated[y]} for y in sorted(aggregated.keys())]
 
     def projects_summary(self) -> Dict[str, Any]:
         rows = []
@@ -234,11 +251,21 @@ class ResearchAnalyticsRepository:
         project = self._logical_table("research_projects")
         project_columns = SchemaReflector.column_names(project)
 
+        try:
+            years = [row["year"] for row in self.publication_trend()]
+        except Exception:
+            years = []
+
+        try:
+            indexing_cats = [row["indexing"] for row in self.indexing_distribution()]
+        except Exception:
+            indexing_cats = []
+
         return {
             "schools": self._distinct_values(faculty_table, school_col),
             "departments": self._distinct_values(faculty_table, dept_col),
-            "years": [row["year"] for row in self.publication_trend()],
-            "indexing_categories": [row["indexing"] for row in self.indexing_distribution()],
+            "years": years,
+            "indexing_categories": indexing_cats,
             "project_statuses": self._distinct_values(project, SchemaReflector.first_existing(project_columns, STATUS_COLUMNS)),
             "funding_agencies": self._distinct_values(project, SchemaReflector.first_existing(project_columns, AGENCY_COLUMNS)),
         }

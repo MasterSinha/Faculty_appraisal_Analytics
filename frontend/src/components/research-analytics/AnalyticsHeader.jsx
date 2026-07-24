@@ -2,11 +2,16 @@ export default function AnalyticsHeader({ demoMode, onExportCsv, onExportXlsx, o
   return (
     <header className="analytics-header">
       <div>
-        <span className="eyebrow">Faculty Appraisal Management System</span>
-        <h1>Research Analytics Dashboard</h1>
-        <p>Research papers, indexing, projects, funding, patents, and reviewer score movement.</p>
+        <h1>Research Analytics</h1>
+        <p>Publication impact · funding pipeline · faculty research scores</p>
       </div>
       <div className="header-actions">
+        <span className="live-dot">Live · just now</span>
+        <select aria-label="Research cycle">
+          <option>Latest cycle</option>
+          <option>Cycle 2025-26</option>
+          <option>Cycle 2024-25</option>
+        </select>
         <button type="button" onClick={onRefresh}>Refresh</button>
         <button type="button" disabled={demoMode} title={demoMode ? 'Connect FastAPI to export live records' : 'Export CSV'} onClick={onExportCsv}>CSV</button>
         <button type="button" className="primary-action" disabled={demoMode} title={demoMode ? 'Connect FastAPI to export live records' : 'Export Excel'} onClick={onExportXlsx}>Excel</button>

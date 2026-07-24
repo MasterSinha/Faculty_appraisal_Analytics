@@ -36,66 +36,100 @@ export default function ResearchAnalyticsDashboard() {
   }
 
   return (
-    <main className="research-page">
-      <AnalyticsHeader demoMode={demoMode} onExportCsv={exportCsv} onExportXlsx={exportXlsx} onRefresh={refresh} />
-      <AnalyticsFilters filters={filters} options={data.filterOptions} onChange={updateFilters} />
-
-      {loading && (
-        <section className="skeleton-grid" aria-label="Loading analytics">
-          {Array.from({ length: 8 }).map((_, index) => <span key={index} />)}
-        </section>
-      )}
-
-      {error && !loading && (
-        <div className={demoMode ? 'notice-banner' : 'error-banner'}>
-          <strong>{error}</strong>
-          <span>For live database connection, ensure `REQUIRE_AUTH=false` in `.env` and PostgreSQL is reachable.</span>
+    <main className="analytics-shell">
+      <aside className="analytics-sidebar">
+        <div className="sidebar-brand">
+          <span className="brand-icon">RA</span>
+          <div>
+            <strong>DYP Analytics</strong>
+            <small>Research Appraisal</small>
+          </div>
         </div>
-      )}
 
-      {!loading && (!error || demoMode) && (
-        <>
-          <OverviewCards overview={data.overview} />
+        <div className="cycle-pill">
+          <span />
+          Cycle 2025-26
+          <strong>LIVE</strong>
+        </div>
 
-          <section className="chart-grid">
-            <IndexingDistributionChart data={data.indexing} />
-            <PublicationTrendChart data={data.trend} />
-            <ScoreComparisonChart scores={data.scores} />
-            <ProjectFundingChart data={data.projects} />
-            <TopFacultyChart data={data.topFaculty} />
-            <article className="chart-card">
-              <div className="card-title">
-                <span>Top journals</span>
-                <h2>Publication count</h2>
-              </div>
-              <div className="horizontal-chart">
-                {data.topJournals.map((item) => (
-                  <div className="hbar-row" key={item.journal}>
-                    <span>{item.journal}</span>
-                    <div><i style={{ width: `${Math.min((item.total || 0) * 10, 100)}%` }} /></div>
-                    <strong>{item.total}</strong>
-                  </div>
-                ))}
-              </div>
-            </article>
+        <nav className="side-nav" aria-label="Research analytics">
+          <button className="active" type="button">Overview</button>
+          <button type="button">Publications</button>
+          <button type="button">Projects</button>
+          <button type="button">Funding</button>
+          <button type="button">Faculty Scores</button>
+        </nav>
+
+        <div className="sidebar-profile">
+          <span>AD</span>
+          <div>
+            <strong>Admin</strong>
+            <small>Research Analytics</small>
+          </div>
+        </div>
+      </aside>
+
+      <section className="research-page">
+        <AnalyticsHeader demoMode={demoMode} onExportCsv={exportCsv} onExportXlsx={exportXlsx} onRefresh={refresh} />
+        <AnalyticsFilters filters={filters} options={data.filterOptions} onChange={updateFilters} />
+
+        {loading && (
+          <section className="skeleton-grid" aria-label="Loading analytics">
+            {Array.from({ length: 8 }).map((_, index) => <span key={index} />)}
           </section>
+        )}
 
-          <FacultyResearchTable
-            data={data.faculty}
-            filters={filters}
-            onFilterChange={updateFilters}
-            onViewDetails={openFacultyDetail}
-          />
-        </>
-      )}
+        {error && !loading && (
+          <div className={demoMode ? 'notice-banner' : 'error-banner'}>
+            <strong>{error}</strong>
+            <span>For live database connection, ensure `REQUIRE_AUTH=false` in `.env` and PostgreSQL is reachable.</span>
+          </div>
+        )}
 
-      {drawerError && <EmptyState title={drawerError} message="Unable to open the selected faculty detail." />}
-      <FacultyResearchDrawer
-        detail={facultyDetail}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        onClose={() => setFacultyDetail(null)}
-      />
+        {!loading && (!error || demoMode) && (
+          <>
+            <OverviewCards overview={data.overview} />
+
+            <section className="chart-grid">
+              <IndexingDistributionChart data={data.indexing} />
+              <PublicationTrendChart data={data.trend} />
+              <ScoreComparisonChart scores={data.scores} />
+              <ProjectFundingChart data={data.projects} />
+              <TopFacultyChart data={data.topFaculty} />
+              <article className="chart-card">
+                <div className="card-title">
+                  <span>Top journals</span>
+                  <h2>Publication count</h2>
+                </div>
+                <div className="horizontal-chart">
+                  {data.topJournals.map((item) => (
+                    <div className="hbar-row" key={item.journal}>
+                      <span>{item.journal}</span>
+                      <div><i style={{ width: `${Math.min((item.total || 0) * 10, 100)}%` }} /></div>
+                      <strong>{item.total}</strong>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </section>
+
+            <FacultyResearchTable
+              data={data.faculty}
+              filters={filters}
+              onFilterChange={updateFilters}
+              onViewDetails={openFacultyDetail}
+            />
+          </>
+        )}
+
+        {drawerError && <EmptyState title={drawerError} message="Unable to open the selected faculty detail." />}
+        <FacultyResearchDrawer
+          detail={facultyDetail}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onClose={() => setFacultyDetail(null)}
+        />
+      </section>
     </main>
   )
 }
