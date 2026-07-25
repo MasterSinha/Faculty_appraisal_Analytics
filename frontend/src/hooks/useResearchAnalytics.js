@@ -192,7 +192,11 @@ export function useResearchAnalytics() {
   }, [filters])
 
   useEffect(() => {
-    refresh()
+    const timeoutId = window.setTimeout(() => {
+      refresh()
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
   }, [refresh])
 
   const exportCsv = useCallback(() => {

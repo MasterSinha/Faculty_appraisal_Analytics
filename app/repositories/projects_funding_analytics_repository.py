@@ -94,9 +94,9 @@ class ProjectsFundingAnalyticsRepository:
             return None
 
     def _get_tables(self) -> Tuple[Optional[Table], Optional[Table], Optional[Table], Optional[Table]]:
-        internal_proj_table = self._logical_table(["research_projects", "internal_research_projects"])
-        external_proj_table = self._logical_table(["external_research_projects", "external_projects"])
-        proposals_table = self._logical_table(["research_proposals", "proposals"])
+        internal_proj_table = self._logical_table(["research_projects", "internal_research_projects", "projects", "faculty_research_projects"])
+        external_proj_table = self._logical_table(["external_research_projects", "external_projects", "sponsored_projects"])
+        proposals_table = self._logical_table(["research_proposals", "proposals", "grant_proposals"])
         faculty_table = self._logical_table(["faculty_profiles", "faculty", "users"])
         return internal_proj_table, external_proj_table, proposals_table, faculty_table
 
@@ -211,7 +211,7 @@ class ProjectsFundingAnalyticsRepository:
         f_email_col = faculty_table.c[f_email] if f_email in faculty_table.c else faculty_table.c[f_cols[0]]
 
         join_clause = func.lower(func.trim(p_email_col)) == func.lower(func.trim(f_email_col))
-        stmt = stmt.select_from(target_table.join(faculty_table, join_clause))
+        stmt = stmt.select_from(target_table.outerjoin(faculty_table, join_clause))
 
         clauses = []
         if "is_active" in faculty_table.c:
@@ -330,7 +330,7 @@ class ProjectsFundingAnalyticsRepository:
         f_email_col = faculty_table.c[f_email] if f_email in faculty_table.c else faculty_table.c[f_cols[0]]
 
         join_clause = func.lower(func.trim(pr_email_col)) == func.lower(func.trim(f_email_col))
-        stmt = stmt.select_from(proposals_table.join(faculty_table, join_clause))
+        stmt = stmt.select_from(proposals_table.outerjoin(faculty_table, join_clause))
 
         clauses = []
         if "is_active" in faculty_table.c:

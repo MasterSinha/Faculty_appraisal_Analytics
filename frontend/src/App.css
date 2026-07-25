@@ -989,6 +989,28 @@ ul, ol { list-style: none; }
 .insight-warning  .insight-metric { background: var(--amber-dim); color: var(--amber); }
 .insight-neutral  .insight-metric { background: var(--surface-3); color: var(--text-3); }
 
+.school-insight-section {
+  margin: 4px 0 28px;
+}
+.school-insight-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.school-insight-card {
+  min-height: 148px;
+  background:
+    radial-gradient(circle at 92% 14%, rgba(99,102,241,0.12), transparent 38%),
+    var(--surface);
+}
+.school-insight-card .insight-icon {
+  flex-shrink: 0;
+}
+.school-insight-card .insight-metric {
+  background: var(--blue-dim);
+  color: #93c5fd;
+}
+
 /* ============================================================
    CHART GRID
    ============================================================ */
@@ -1763,6 +1785,9 @@ ul, ol { list-style: none; }
   }
 
   .chart-grid {
+    grid-template-columns: 1fr;
+  }
+  .school-insight-grid {
     grid-template-columns: 1fr;
   }
 

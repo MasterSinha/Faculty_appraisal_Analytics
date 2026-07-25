@@ -79,18 +79,23 @@ function CategoryComparison({ rows }) {
 }
 
 function InsightPanel({ insights }) {
+  const icons = ['↑', '₹', '↗', '!', '○', '◉']
   return (
-    <section className="attention-section">
-      <div className="section-title">
-        <span>Insights</span>
-        <h2>School-level observations</h2>
+    <section className="school-insight-section" aria-label="School-level observations">
+      <div className="summary-heading">
+        <div>
+          <span>Automated intelligence</span>
+          <h2>School-Level Observations</h2>
+        </div>
       </div>
-      <div className="attention-grid">
-        {insights.map((insight) => (
-          <article className="attention-card" key={insight.title}>
-            <div>
-              <strong>{insight.title}</strong>
-              <p>{insight.message}</p>
+      <div className="school-insight-grid">
+        {insights.map((insight, index) => (
+          <article className="insight-card school-insight-card" key={insight.title}>
+            <div className="insight-icon" aria-hidden="true">{icons[index % icons.length]}</div>
+            <div className="insight-body">
+              <div className="insight-title">{insight.title}</div>
+              <p className="insight-explanation">{insight.message}</p>
+              <span className="insight-metric">School analytics</span>
             </div>
           </article>
         ))}
