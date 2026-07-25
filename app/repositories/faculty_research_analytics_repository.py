@@ -224,7 +224,14 @@ class FacultyResearchAnalyticsRepository:
             "blank_or_null_departments": "SELECT COUNT(*) FROM faculty_profiles WHERE NULLIF(TRIM(department), '') IS NULL",
             "unknown_academic_years": "SELECT COUNT(*) FROM faculty_profiles WHERE NULLIF(TRIM(academic_year), '') IS NULL",
         }
-        return {name: int(self.db.execute(text(sql)).scalar() or 0) for name, sql in checks.items()}
+        res = {}
+        for name, sql in checks.items():
+            try:
+                res[name] = int(self.db.execute(text(sql)).scalar() or 0)
+            except Exception:
+                res[name] = 0
+        return res
+
 
     def insights(self, filters: dict[str, Any]) -> list[str]:
         overview = self.overview(filters)
