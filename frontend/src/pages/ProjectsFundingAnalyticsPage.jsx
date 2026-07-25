@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import FilterBar from '../components/research-analytics/FilterBar'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
 import PageHeader from '../components/research-analytics/PageHeader'
+import HorizontalBarChart from '../components/research-analytics/charts/HorizontalBarChart'
+import RankingList from '../components/research-analytics/charts/RankingList'
+import SparklineRow from '../components/research-analytics/charts/SparklineRow'
+import StatRing from '../components/research-analytics/charts/StatRing'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
 
@@ -46,10 +50,6 @@ function normalizeRole(value) {
   return 'Other'
 }
 
-function finalScore(record) {
-  return record.vc_score ?? record.dean_score ?? record.director_score ?? record.hod_score ?? record.score ?? 0
-}
-
 function groupBy(records, keyGetter) {
   return records.reduce((acc, record) => {
     const key = keyGetter(record) || 'Unknown'
@@ -64,25 +64,132 @@ function sumAmount(rows) {
 }
 
 function MiniBarChart({ title, subtitle, rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber }) {
-  const max = Math.max(...rows.map((row) => Number(row[valueKey] || 0)), 1)
+  const chartRows = rows.map((row) => ({ ...row, label: row[labelKey], value: Number(row[valueKey] || 0) }))
+  const context = `${title} ${subtitle}`.toLowerCase()
+  if (context.includes('trend') || context.includes('year')) return <AreaTrendChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('status') || context.includes('count by agency')) return <DonutChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('funding by faculty') || context.includes('funding by department')) return <HorizontalBarChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('agency') || context.includes('faculty') || context.includes('funding')) return <BubbleCloudChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  return <ComparisonTiles title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+}
+
+function DonutChart({ title, subtitle, rows, valueKey = 'value', formatter = formatNumber }) {
+  const [active, setActive] = useState(rows[0]?.label || '')
+  const total = rows.reduce((sum, row) => sum + Number(row[valueKey] || 0), 0) || 1
+  const palette = ['#2563eb', '#14b8a6', '#f59e0b', '#7c3aed', '#ef4444', '#06b6d4']
+  const stops = rows.map((row, index) => {
+    const start = rows.slice(0, index).reduce((sum, item) => sum + (Number(item[valueKey] || 0) / total) * 100, 0)
+    const end = start + (Number(row[valueKey] || 0) / total) * 100
+    return `${palette[index % palette.length]} ${start}% ${end}%`
+  }).join(', ')
+  const activeRow = rows.find((row) => row.label === active) || rows[0]
 
   return (
-    <article className="chart-card funding-chart-card">
+    <article className="chart-card interactive-chart-card">
       <div className="card-title">
         <span>{subtitle}</span>
         <h2>{title}</h2>
       </div>
-      <div className="books-bars">
-        {rows.length ? rows.slice(0, 10).map((row) => {
-          const value = Number(row[valueKey] || 0)
+      <div className="interactive-donut-layout">
+        <div className="interactive-donut" style={{ background: `conic-gradient(${stops || '#e2e8f0 0 100%'})` }}>
+          <strong>{activeRow ? formatter(activeRow[valueKey]) : formatter(total)}</strong>
+          <span>{activeRow?.label || 'Total'}</span>
+        </div>
+        <div className="interactive-legend">
+          {rows.map((row, index) => (
+            <button type="button" className={active === row.label ? 'active' : ''} key={row.label} onMouseEnter={() => setActive(row.label)} onFocus={() => setActive(row.label)}>
+              <i style={{ background: palette[index % palette.length] }} />
+              <span>{row.label}</span>
+              <strong>{formatter(row[valueKey])}</strong>
+            </button>
+          ))}
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function AreaTrendChart({ title, subtitle, rows, formatter = formatNumber }) {
+  const [activeIndex, setActiveIndex] = useState(rows.length - 1)
+  const width = 420
+  const height = 190
+  const pad = 24
+  const max = Math.max(...rows.map((row) => Number(row.value || 0)), 1)
+  const points = rows.map((row, index) => {
+    const x = rows.length === 1 ? width / 2 : pad + (index / (rows.length - 1)) * (width - pad * 2)
+    const y = height - pad - (Number(row.value || 0) / max) * (height - pad * 2)
+    return { ...row, x, y }
+  })
+  const line = points.map((point) => `${point.x},${point.y}`).join(' ')
+  const area = points.length ? `${pad},${height - pad} ${line} ${width - pad},${height - pad}` : ''
+  const activePoint = points[activeIndex] || points[0]
+
+  return (
+    <article className="chart-card interactive-chart-card">
+      <div className="card-title">
+        <span>{subtitle}</span>
+        <h2>{title}</h2>
+      </div>
+      <div className="area-chart-wrap">
+        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
+          <polygon points={area} />
+          <polyline points={line} />
+          {points.map((point, index) => (
+            <circle key={`${point.label}-${index}`} cx={point.x} cy={point.y} r={activeIndex === index ? 6 : 4} onMouseEnter={() => setActiveIndex(index)} />
+          ))}
+        </svg>
+        <div className="area-chart-readout">
+          <span>{activePoint?.label || 'Trend'}</span>
+          <strong>{formatter(activePoint?.value || 0)}</strong>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function BubbleCloudChart({ title, subtitle, rows, formatter = formatNumber }) {
+  const max = Math.max(...rows.map((row) => Number(row.value || 0)), 1)
+
+  return (
+    <article className="chart-card interactive-chart-card">
+      <div className="card-title">
+        <span>{subtitle}</span>
+        <h2>{title}</h2>
+      </div>
+      <div className="bubble-cloud">
+        {rows.slice(0, 9).map((row, index) => {
+          const size = 72 + (Number(row.value || 0) / max) * 82
           return (
-            <div className="books-bar-row" key={`${title}-${row[labelKey]}`}>
-              <span>{row[labelKey]}</span>
-              <div><i style={{ width: `${(value / max) * 100}%` }} /></div>
-              <strong>{formatter(value)}</strong>
-            </div>
+            <button type="button" key={row.label} style={{ width: size, height: size }} title={`${row.label}: ${formatter(row.value)}`}>
+              <strong>{formatter(row.value)}</strong>
+              <span>{row.label}</span>
+              <em>{row.count ? `${row.count} projects` : ''}</em>
+              <i>{index + 1}</i>
+            </button>
           )
-        }) : <div className="mini-empty">No project/funding data available</div>}
+        })}
+      </div>
+    </article>
+  )
+}
+
+function ComparisonTiles({ title, subtitle, rows, formatter = formatNumber }) {
+  const total = rows.reduce((sum, row) => sum + Number(row.value || 0), 0) || 1
+
+  return (
+    <article className="chart-card interactive-chart-card">
+      <div className="card-title">
+        <span>{subtitle}</span>
+        <h2>{title}</h2>
+      </div>
+      <div className="comparison-tiles">
+        {rows.map((row) => (
+          <div key={row.label}>
+            <span>{row.label}</span>
+            <strong>{formatter(row.value)}</strong>
+            <i style={{ width: `${(Number(row.value || 0) / total) * 100}%` }} />
+          </div>
+        ))}
       </div>
     </article>
   )
@@ -144,7 +251,7 @@ function ProjectsTable({ projects, proposals }) {
 
       <div className="funding-table">
         <div className="funding-table-head">
-          {['Project title', 'Faculty', 'Department', 'School', 'Agency', 'Sanction date', 'Amount', 'Role', 'Project status', 'Academic year', 'Validated score'].map((column) => (
+          {['Project title', 'Faculty', 'Department', 'School', 'Agency', 'Sanction date', 'Amount', 'Role', 'Project status', 'Academic year'].map((column) => (
             <span key={column}>{column}</span>
           ))}
         </div>
@@ -160,7 +267,6 @@ function ProjectsTable({ projects, proposals }) {
             <span>{normalizeRole(record.role)}</span>
             <span>{normalizeStatus(record.project_status || record.status)}</span>
             <span>{record.academic_year || '-'}</span>
-            <span>{finalScore(record)}</span>
           </div>
         ))}
       </div>
@@ -331,27 +437,35 @@ export default function ProjectsFundingAnalyticsPage({ sharedData, filters, upda
           </nav>
 
           {activeTab === 'Funding Overview' && (
-            <section className="executive-chart-row two-col">
-              <MiniBarChart title="Funding by department" subtitle="Department funding" rows={departmentFunding} formatter={money} />
-              <MiniBarChart title="Funding by school" subtitle="School funding" rows={schoolFunding} formatter={money} />
-              <MiniBarChart title="Top funding agencies" subtitle="Agency concentration" rows={agencyFunding} formatter={money} />
-              <MiniBarChart title="Internal versus external funding" subtitle="Funding source" rows={[
-                { label: 'Internal / unspecified', value: Math.max(totalSanctioned - externalFunding, 0) },
-                { label: 'External', value: externalFunding },
-              ]} formatter={money} />
-              <MiniBarChart title="Funding trend by sanction date" subtitle="Funding trend" rows={trendRows} formatter={money} />
-              <RatioCard title="Funding concentration" items={[
-                { label: 'Top five faculty funding share', value: percent(topFiveFacultyShare) },
-                { label: 'Top five department funding share', value: percent(topFiveDepartmentShare) },
-                { label: 'Highest funded faculty', value: facultyFunding[0]?.label || '-' },
-                { label: 'Year-over-year funding growth', value: 'Needs yearly backend baseline' },
-              ]} />
-            </section>
+            <>
+              <div className="stat-rings-row">
+                <StatRing value={proposalToProject} label="Proposal to Project" color="#22c55e" />
+                <StatRing value={externalFundingPct} label="External Funding" color="#06b6d4" />
+                <StatRing value={topFiveFacultyShare} label="Top 5 Faculty Share" color="#f59e0b" />
+                <SparklineRow values={trendRows.map((row) => Number(row.value || 0))} color="#06b6d4" label="Funding trend" />
+              </div>
+              <section className="executive-chart-row two-col">
+                <BubbleCloudChart title="Funding by department" subtitle="Department funding" rows={departmentFunding} formatter={money} />
+                <DonutChart title="Funding by school" subtitle="School funding share" rows={schoolFunding} formatter={money} />
+                <RankingList title="Top funding agencies" subtitle="Agency concentration" rows={agencyFunding} formatter={money} badgeKey="count" badgeFormatter={formatNumber} />
+                <ComparisonTiles title="Internal versus external funding" subtitle="Funding source" rows={[
+                  { label: 'Internal / unspecified', value: Math.max(totalSanctioned - externalFunding, 0) },
+                  { label: 'External', value: externalFunding },
+                ]} formatter={money} />
+                <AreaTrendChart title="Funding trend by sanction date" subtitle="Funding trend" rows={trendRows} formatter={money} />
+                <RatioCard title="Funding concentration" items={[
+                  { label: 'Top five faculty funding share', value: percent(topFiveFacultyShare) },
+                  { label: 'Top five department funding share', value: percent(topFiveDepartmentShare) },
+                  { label: 'Highest funded faculty', value: facultyFunding[0]?.label || '-' },
+                  { label: 'Year-over-year funding growth', value: 'Needs yearly backend baseline' },
+                ]} />
+              </section>
+            </>
           )}
 
           {activeTab === 'Research Projects' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Project status distribution" subtitle="Status" rows={statusRows} />
+              <DonutChart title="Project status distribution" subtitle="Status" rows={statusRows} />
               <MiniBarChart title="Funding by faculty" subtitle="Faculty funding" rows={facultyFunding} formatter={money} />
               <RatioCard title="Project health" items={[
                 { label: 'Ongoing projects', value: ongoing },
@@ -375,8 +489,8 @@ export default function ProjectsFundingAnalyticsPage({ sharedData, filters, upda
 
           {activeTab === 'Proposals' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Proposal trend by academic year" subtitle="Proposal trend" rows={proposalTrendRows} />
-              <MiniBarChart title="Proposal amount by agency" subtitle="Proposed funding" rows={Object.entries(groupBy(proposals, (record) => record.agency)).map(([label, rows]) => ({ label, value: sumAmount(rows) }))} formatter={money} />
+              <AreaTrendChart title="Proposal trend by academic year" subtitle="Proposal trend" rows={proposalTrendRows} />
+              <BubbleCloudChart title="Proposal amount by agency" subtitle="Proposed funding" rows={Object.entries(groupBy(proposals, (record) => record.agency)).map(([label, rows]) => ({ label, value: sumAmount(rows), count: rows.length }))} formatter={money} />
               <RatioCard title="Proposal conversion indicators" items={[
                 { label: 'Proposal-to-project indicator', value: percent(proposalToProject) },
                 { label: 'Departments with proposals but no funded projects', value: departmentsWithProposalsNoProjects },
@@ -387,13 +501,14 @@ export default function ProjectsFundingAnalyticsPage({ sharedData, filters, upda
 
           {activeTab === 'Funding Agencies' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Top funding agencies" subtitle="Agency funding" rows={agencyFunding} formatter={money} />
-              <MiniBarChart title="Project count by agency" subtitle="Agency project count" rows={agencyFunding} valueKey="count" />
+              <RankingList title="Top funding agencies" subtitle="Agency funding" rows={agencyFunding} formatter={money} badgeKey="count" badgeFormatter={formatNumber} />
+              <DonutChart title="Project count by agency" subtitle="Agency project count" rows={agencyFunding} valueKey="count" />
             </section>
           )}
 
           {activeTab === 'Faculty and Department Funding' && (
             <section className="executive-chart-row two-col">
+              <RankingList title="Top funded faculty" subtitle="Faculty funding" rows={facultyFunding} formatter={money} />
               <MiniBarChart title="Funding by faculty" subtitle="Faculty funding" rows={facultyFunding} formatter={money} />
               <MiniBarChart title="Funding by department" subtitle="Department funding" rows={departmentFunding} formatter={money} />
               <RatioCard title="Participation and role analytics" items={[

@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import FilterBar from '../components/research-analytics/FilterBar'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
 import PageHeader from '../components/research-analytics/PageHeader'
+import DonutChart from '../components/research-analytics/charts/DonutChart'
+import HorizontalBarChart from '../components/research-analytics/charts/HorizontalBarChart'
+import RankingList from '../components/research-analytics/charts/RankingList'
+import StatRing from '../components/research-analytics/charts/StatRing'
+import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
 
@@ -26,28 +31,11 @@ function groupBy(records, keyGetter) {
 }
 
 function MiniBarChart({ title, subtitle, rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber }) {
-  const max = Math.max(...rows.map((row) => Number(row[valueKey] || 0)), 1)
-
-  return (
-    <article className="chart-card data-quality-chart-card">
-      <div className="card-title">
-        <span>{subtitle}</span>
-        <h2>{title}</h2>
-      </div>
-      <div className="books-bars">
-        {rows.length ? rows.slice(0, 10).map((row) => {
-          const value = Number(row[valueKey] || 0)
-          return (
-            <div className="books-bar-row" key={`${title}-${row[labelKey]}`}>
-              <span>{row[labelKey]}</span>
-              <div><i style={{ width: `${(value / max) * 100}%` }} /></div>
-              <strong>{formatter(value)}</strong>
-            </div>
-          )
-        }) : <div className="mini-empty">No data-quality alerts available</div>}
-      </div>
-    </article>
-  )
+  const chartRows = rows.map((row) => ({ ...row, label: row[labelKey], value: Number(row[valueKey] || 0) }))
+  const context = `${title} ${subtitle}`.toLowerCase()
+  if (context.includes('severity') || context.includes('category')) return <DonutChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('department')) return <HorizontalBarChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  return <TileGrid title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
 }
 
 function AlertTable({ alerts, reviewSupported }) {
@@ -241,13 +229,17 @@ export default function ResearchDataQualityPage({ filters, updateFilters, refres
             { label: 'Data Completeness Percentage', value: percent(completeness), icon: 'DC', subtext: 'Estimated completeness' },
           ]} secondaryKpis={severityRows} />
 
+          <div className="stat-rings-row">
+            <StatRing value={completeness} label="Overall Data Completeness" color="#22c55e" />
+          </div>
+
           <nav className="page-tabs" aria-label="Data quality tabs">
             {tabs.map((tab) => <button className={activeTab === tab ? 'active' : ''} type="button" key={tab} onClick={() => setActiveTab(tab)}>{tab}</button>)}
           </nav>
 
           {activeTab === 'Completeness by Department' ? (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Completeness by department" subtitle="Completeness" rows={departmentRows} valueKey="completeness" formatter={percent} />
+              <RankingList title="Completeness by department" subtitle="Completeness" rows={departmentRows} valueKey="completeness" formatter={percent} />
               <MiniBarChart title="Alerts by department" subtitle="Department" rows={departmentRows} />
             </section>
           ) : (

@@ -2,6 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import FilterBar from '../components/research-analytics/FilterBar'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
 import PageHeader from '../components/research-analytics/PageHeader'
+import AreaTrendChart from '../components/research-analytics/charts/AreaTrendChart'
+import BubbleCloudChart from '../components/research-analytics/charts/BubbleCloudChart'
+import DonutChart from '../components/research-analytics/charts/DonutChart'
+import HorizontalBarChart from '../components/research-analytics/charts/HorizontalBarChart'
+import RadarChart from '../components/research-analytics/charts/RadarChart'
+import RankingList from '../components/research-analytics/charts/RankingList'
+import StatRing from '../components/research-analytics/charts/StatRing'
+import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
 
@@ -58,28 +66,13 @@ function groupBy(records, keyGetter) {
 }
 
 function MiniBarChart({ title, subtitle, rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber }) {
-  const max = Math.max(...rows.map((row) => Number(row[valueKey] || 0)), 1)
-
-  return (
-    <article className="chart-card department-performance-chart-card">
-      <div className="card-title">
-        <span>{subtitle}</span>
-        <h2>{title}</h2>
-      </div>
-      <div className="books-bars">
-        {rows.length ? rows.slice(0, 10).map((row) => {
-          const value = Number(row[valueKey] || 0)
-          return (
-            <div className="books-bar-row" key={`${title}-${row[labelKey]}`}>
-              <span>{row[labelKey]}</span>
-              <div><i style={{ width: `${(value / max) * 100}%` }} /></div>
-              <strong>{formatter(value)}</strong>
-            </div>
-          )
-        }) : <div className="mini-empty">No department performance data available</div>}
-      </div>
-    </article>
-  )
+  const chartRows = rows.map((row) => ({ ...row, label: row[labelKey], value: Number(row[valueKey] || 0) }))
+  const context = `${title} ${subtitle}`.toLowerCase()
+  if (context.includes('growth') || context.includes('year')) return <AreaTrendChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('patent') || context.includes('no patents')) return <DonutChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('participation') || context.includes('health score')) return <HorizontalBarChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('funding') || context.includes('output')) return <BubbleCloudChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  return <TileGrid title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
 }
 
 function HealthBreakdown({ department }) {
@@ -358,7 +351,23 @@ export default function DepartmentResearchPerformancePage({ filters, updateFilte
 
           {activeTab === 'Comparison' && (
             <section className="executive-chart-row two-col">
+              <StatRing value={rows.length ? (rows.filter((row) => row.health_category === 'Excellent' || row.health_category === 'Strong').length / rows.length) * 100 : 0} label="Strong Departments" color="#22c55e" />
+              <RankingList title="Department output ranking" subtitle="Research output" rows={chartRows} />
               <MiniBarChart title="Department output ranking" subtitle="Research output" rows={chartRows} />
+              <RadarChart title="Top Department Research Profile" subtitle="Top 3 departments" axes={[
+                { key: 'journals', label: 'Journals' },
+                { key: 'patents', label: 'Patents' },
+                { key: 'projects', label: 'Projects' },
+                { key: 'guidance', label: 'Guidance' },
+                { key: 'conferences', label: 'Conferences' },
+              ]} rows={[...rows].sort((a, b) => b.total_research_output - a.total_research_output).slice(0, 3).map((row) => ({
+                label: row.department,
+                journals: row.journal_papers,
+                patents: row.patents,
+                projects: row.projects,
+                guidance: row.research_guidance,
+                conferences: row.conferences,
+              }))} />
               <DepartmentHeatmap rows={rows} />
             </section>
           )}

@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react'
 import FilterBar from '../components/research-analytics/FilterBar'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
 import PageHeader from '../components/research-analytics/PageHeader'
+import AreaTrendChart from '../components/research-analytics/charts/AreaTrendChart'
+import BubbleCloudChart from '../components/research-analytics/charts/BubbleCloudChart'
+import DonutChart from '../components/research-analytics/charts/DonutChart'
+import HorizontalBarChart from '../components/research-analytics/charts/HorizontalBarChart'
+import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
 
@@ -36,28 +41,13 @@ function byCount(records, keyGetter) {
 }
 
 function MiniBarChart({ title, subtitle, rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber }) {
-  const max = Math.max(...rows.map((row) => Number(row[valueKey] || 0)), 1)
-
-  return (
-    <article className="chart-card pipeline-chart-card">
-      <div className="card-title">
-        <span>{subtitle}</span>
-        <h2>{title}</h2>
-      </div>
-      <div className="books-bars">
-        {rows.length ? rows.slice(0, 10).map((row) => {
-          const value = Number(row[valueKey] || 0)
-          return (
-            <div className="books-bar-row" key={`${title}-${row[labelKey]}`}>
-              <span>{row[labelKey]}</span>
-              <div><i style={{ width: `${(value / max) * 100}%` }} /></div>
-              <strong>{formatter(value)}</strong>
-            </div>
-          )
-        }) : <div className="mini-empty">No innovation pipeline data available</div>}
-      </div>
-    </article>
-  )
+  const chartRows = rows.map((row) => ({ ...row, label: row[labelKey], value: Number(row[valueKey] || 0) }))
+  const context = `${title} ${subtitle}`.toLowerCase()
+  if (context.includes('year') || context.includes('trend')) return <AreaTrendChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('school') || context.includes('comparison')) return <DonutChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('department')) return <HorizontalBarChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('faculty') || context.includes('diversity')) return <BubbleCloudChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  return <TileGrid title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
 }
 
 function InsightCard({ title, items }) {

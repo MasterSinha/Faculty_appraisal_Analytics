@@ -2,6 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import FilterBar from '../components/research-analytics/FilterBar'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
 import PageHeader from '../components/research-analytics/PageHeader'
+import AreaTrendChart from '../components/research-analytics/charts/AreaTrendChart'
+import ComparisonTiles from '../components/research-analytics/charts/ComparisonTiles'
+import DonutChart from '../components/research-analytics/charts/DonutChart'
+import FunnelChart from '../components/research-analytics/charts/FunnelChart'
+import HorizontalBarChart from '../components/research-analytics/charts/HorizontalBarChart'
+import RankingList from '../components/research-analytics/charts/RankingList'
+import StatRing from '../components/research-analytics/charts/StatRing'
+import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
 
@@ -44,28 +52,14 @@ function groupBy(records, keyGetter) {
 }
 
 function MiniBarChart({ title, subtitle, rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber }) {
-  const max = Math.max(...rows.map((row) => Number(row[valueKey] || 0)), 1)
-
-  return (
-    <article className="chart-card completion-chart-card">
-      <div className="card-title">
-        <span>{subtitle}</span>
-        <h2>{title}</h2>
-      </div>
-      <div className="books-bars">
-        {rows.length ? rows.slice(0, 10).map((row) => {
-          const value = Number(row[valueKey] || 0)
-          return (
-            <div className="books-bar-row" key={`${title}-${row[labelKey]}`}>
-              <span>{row[labelKey]}</span>
-              <div><i style={{ width: `${(value / max) * 100}%` }} /></div>
-              <strong>{formatter(value)}</strong>
-            </div>
-          )
-        }) : <div className="mini-empty">No appraisal completion data available</div>}
-      </div>
-    </article>
-  )
+  const chartRows = rows.map((row) => ({ ...row, label: row[labelKey], value: Number(row[valueKey] || 0) }))
+  const context = `${title} ${subtitle}`.toLowerCase()
+  if (context.includes('trend') || context.includes('year')) return <AreaTrendChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('review-stage') || context.includes('status')) return <FunnelChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('versus')) return <ComparisonTiles title={title} subtitle={subtitle} items={chartRows.map((row) => ({ label: row.label, value: formatter(row.value) }))} />
+  if (context.includes('school')) return <DonutChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('department')) return <HorizontalBarChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  return <TileGrid title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
 }
 
 function StatusPanel({ rows }) {
@@ -228,6 +222,8 @@ export default function AppraisalCompletionAnalyticsPage({ filters, updateFilter
   const researchActiveNotSubmitted = researchActive.filter((item) => !item.submitted).length
   const missingEvidence = appraisals.reduce((sum, item) => sum + Number(item.records_without_documents || 0), 0)
   const statusRows = Object.entries(groupBy(appraisals, (item) => displayStatus(item.status))).map(([label, rows]) => ({ label, value: rows.length }))
+  const vcApproved = statusRows.find((row) => row.label === 'VC Approved')?.value || 0
+  const researchActiveSubmitted = researchActive.filter((item) => item.submitted).length
   const departmentMetrics = response.department_metrics?.length ? response.department_metrics : Object.entries(groupBy(appraisals, (item) => item.department)).map(([department, rows]) => {
     const submittedCount = rows.filter((item) => item.submitted).length
     const researchActiveRows = rows.filter((item) => item.research_active)
@@ -281,8 +277,14 @@ export default function AppraisalCompletionAnalyticsPage({ filters, updateFilter
             { label: 'Research Records Missing Evidence', value: formatNumber(missingEvidence), icon: 'ME', subtext: 'Document evidence gap' },
           ]} secondaryKpis={statusRows} />
 
+          <div className="stat-rings-row">
+            <StatRing value={activeFaculty ? (submitted / activeFaculty) * 100 : 0} label="Completion Rate" color="#22c55e" />
+            <StatRing value={activeFaculty ? (vcApproved / activeFaculty) * 100 : 0} label="VC Approved Rate" color="#6366f1" />
+            <StatRing value={researchActive.length ? (researchActiveSubmitted / researchActive.length) * 100 : 0} label="Research Active Submitted" color="#f59e0b" />
+          </div>
+
           <section className="executive-chart-row two-col">
-            <MiniBarChart title="Submission status by department" subtitle="Department" rows={departmentMetrics.map((row) => ({ label: row.department, value: row.submitted_count }))} />
+            <RankingList title="Submission status by department" subtitle="Department" rows={departmentMetrics.map((row) => ({ label: row.department, value: row.submitted_count }))} />
             <MiniBarChart title="Completion rate by school" subtitle="School" rows={schoolRows} formatter={percent} />
             <MiniBarChart title="Submission trend by academic year" subtitle="Academic year" rows={yearRows} />
             <MiniBarChart title="Research-active versus submitted faculty" subtitle="Submission alignment" rows={[

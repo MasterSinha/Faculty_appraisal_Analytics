@@ -2,6 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import FilterBar from '../components/research-analytics/FilterBar'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
 import PageHeader from '../components/research-analytics/PageHeader'
+import AreaTrendChart from '../components/research-analytics/charts/AreaTrendChart'
+import BubbleCloudChart from '../components/research-analytics/charts/BubbleCloudChart'
+import DonutChart from '../components/research-analytics/charts/DonutChart'
+import HorizontalBarChart from '../components/research-analytics/charts/HorizontalBarChart'
+import RankingList from '../components/research-analytics/charts/RankingList'
+import ScatterChart from '../components/research-analytics/charts/ScatterChart'
+import StatRing from '../components/research-analytics/charts/StatRing'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
 
@@ -15,10 +22,6 @@ function normalizeDegree(value) {
   if (text.includes('ug') || text.includes('under graduate') || text.includes('undergraduate') || text.includes('b.tech') || text.includes('b.e') || text.includes('b.sc')) return 'UG'
   if (text.includes('diploma')) return 'Diploma'
   return 'Other'
-}
-
-function finalScore(record) {
-  return record.vc_score ?? record.dean_score ?? record.director_score ?? record.hod_score ?? record.score ?? 0
 }
 
 function formatNumber(value) {
@@ -39,28 +42,13 @@ function groupBy(records, keyGetter) {
 }
 
 function MiniBarChart({ title, subtitle, rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber }) {
-  const max = Math.max(...rows.map((row) => Number(row[valueKey] || 0)), 1)
-
-  return (
-    <article className="chart-card guidance-chart-card">
-      <div className="card-title">
-        <span>{subtitle}</span>
-        <h2>{title}</h2>
-      </div>
-      <div className="books-bars">
-        {rows.length ? rows.slice(0, 10).map((row) => {
-          const value = Number(row[valueKey] || 0)
-          return (
-            <div className="books-bar-row" key={`${title}-${row[labelKey]}`}>
-              <span>{row[labelKey]}</span>
-              <div><i style={{ width: `${(value / max) * 100}%` }} /></div>
-              <strong>{formatter(value)}</strong>
-            </div>
-          )
-        }) : <div className="mini-empty">No guidance data available</div>}
-      </div>
-    </article>
-  )
+  const chartRows = rows.map((row) => ({ ...row, label: row[labelKey], value: Number(row[valueKey] || 0), x: Number(row[valueKey] || 0), y: Number(row.participation ?? row.phdParticipation ?? row.avgScholars ?? 0) }))
+  const context = `${title} ${subtitle}`.toLowerCase()
+  if (context.includes('year') || context.includes('trend')) return <AreaTrendChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('degree')) return <DonutChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('versus') || context.includes('cross')) return <ScatterChart title={title} subtitle={subtitle} rows={chartRows} xLabel="Count" yLabel="Participation" xFormatter={formatter} yFormatter={percent} />
+  if (context.includes('participation') || context.includes('average') || context.includes('department')) return <HorizontalBarChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  return <BubbleCloudChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
 }
 
 function GuidanceTable({ records }) {
@@ -92,7 +80,6 @@ function GuidanceTable({ records }) {
             <option value="academic_year">Sort by year</option>
             <option value="degree">Sort by degree</option>
             <option value="department">Sort by department</option>
-            <option value="score">Sort by score</option>
           </select>
           <button type="button">CSV Export</button>
         </div>
@@ -100,7 +87,7 @@ function GuidanceTable({ records }) {
 
       <div className="guidance-table">
         <div className="guidance-table-head">
-          {['Faculty', 'Department', 'School', 'Degree', 'Student name', 'Thesis title', 'Academic year', 'Self score', 'Final score'].map((column) => (
+          {['Faculty', 'Department', 'School', 'Degree', 'Student name', 'Thesis title', 'Academic year'].map((column) => (
             <span key={column}>{column}</span>
           ))}
         </div>
@@ -113,8 +100,6 @@ function GuidanceTable({ records }) {
             <span>{record.student_name || '-'}</span>
             <span>{record.thesis || '-'}</span>
             <span>{record.academic_year || '-'}</span>
-            <span>{record.score ?? '-'}</span>
-            <span>{finalScore(record)}</span>
           </div>
         ))}
       </div>
@@ -268,18 +253,23 @@ export default function ResearchGuidanceAnalyticsPage({ sharedData, filters, upd
           </nav>
 
           {activeTab === 'Overview' && (
-            <section className="executive-chart-row two-col">
-              <MiniBarChart title="Students guided by degree" subtitle="Degree mix" rows={degreeRows} />
-              <MiniBarChart title="Guidance by department" subtitle="Department guidance" rows={departmentRows} />
-              <MiniBarChart title="Guidance by school" subtitle="School guidance" rows={schoolRows} />
-              <MiniBarChart title="Guidance trend by academic year" subtitle="Academic year trend" rows={yearRows} />
-              <MiniBarChart title="Top research supervisors" subtitle="Faculty supervisors" rows={supervisorRows} />
-              <MiniBarChart title="Publication count versus guided students" subtitle="Cross analysis" rows={[
-                { label: 'Publishing not guiding', value: publishingNotGuiding },
-                { label: 'Guiding not publishing', value: guidingNotPublishing },
-                { label: 'Guiding faculty', value: guidingFaculty },
-              ]} />
-            </section>
+            <>
+              <div className="stat-rings-row">
+                <StatRing value={guidanceRate} label="Guidance Participation" color="#22c55e" />
+              </div>
+              <section className="executive-chart-row two-col">
+                <MiniBarChart title="Students guided by degree" subtitle="Degree mix" rows={degreeRows} />
+                <MiniBarChart title="Guidance by department" subtitle="Department guidance" rows={departmentRows} />
+                <MiniBarChart title="Guidance by school" subtitle="School guidance" rows={schoolRows} />
+                <MiniBarChart title="Guidance trend by academic year" subtitle="Academic year trend" rows={yearRows} />
+                <RankingList title="Top research supervisors" subtitle="Faculty supervisors" rows={supervisorRows} />
+                <MiniBarChart title="Publication count versus guided students" subtitle="Cross analysis" rows={[
+                  { label: 'Publishing not guiding', value: publishingNotGuiding },
+                  { label: 'Guiding not publishing', value: guidingNotPublishing },
+                  { label: 'Guiding faculty', value: guidingFaculty },
+                ]} />
+              </section>
+            </>
           )}
 
           {activeTab === 'Degree Analysis' && (

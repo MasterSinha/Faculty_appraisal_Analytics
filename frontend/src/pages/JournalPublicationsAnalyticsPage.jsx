@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import FilterBar from '../components/research-analytics/FilterBar'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
 import PageHeader from '../components/research-analytics/PageHeader'
+import AreaTrendChart from '../components/research-analytics/charts/AreaTrendChart'
+import BubbleCloudChart from '../components/research-analytics/charts/BubbleCloudChart'
+import DonutChart from '../components/research-analytics/charts/DonutChart'
+import HorizontalBarChart from '../components/research-analytics/charts/HorizontalBarChart'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
 
@@ -41,28 +45,13 @@ function finalScore(record) {
 }
 
 function MiniBarChart({ title, subtitle, rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber }) {
-  const max = Math.max(...rows.map((row) => Number(row[valueKey] || 0)), 1)
-
-  return (
-    <article className="chart-card journal-chart-card">
-      <div className="card-title">
-        <span>{subtitle}</span>
-        <h2>{title}</h2>
-      </div>
-      <div className="books-bars">
-        {rows.length ? rows.slice(0, 10).map((row) => {
-          const value = Number(row[valueKey] || 0)
-          return (
-            <div className="books-bar-row" key={`${title}-${row[labelKey]}`}>
-              <span>{row[labelKey]}</span>
-              <div><i style={{ width: `${(value / max) * 100}%` }} /></div>
-              <strong>{formatter(value)}</strong>
-            </div>
-          )
-        }) : <div className="mini-empty">No publication data available</div>}
-      </div>
-    </article>
-  )
+  const chartRows = rows.map((row) => ({ ...row, label: row[labelKey], value: Number(row[valueKey] || 0) }))
+  const context = `${title} ${subtitle}`.toLowerCase()
+  if (context.includes('year') || context.includes('trend')) return <AreaTrendChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('indexing') || context.includes('distribution')) return <DonutChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('department output') || context.includes('score')) return <HorizontalBarChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('journal') || context.includes('faculty')) return <BubbleCloudChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  return <BubbleCloudChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
 }
 
 function QuadrantChart({ rows }) {
@@ -100,7 +89,6 @@ function PublicationRecordsTable({ records }) {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('academic_year')
   const [page, setPage] = useState(1)
-  const [expandedId, setExpandedId] = useState('')
   const pageSize = 10
 
   const filtered = useMemo(() => {
@@ -126,7 +114,6 @@ function PublicationRecordsTable({ records }) {
             <option value="academic_year">Sort by year</option>
             <option value="journal">Sort by journal</option>
             <option value="department">Sort by department</option>
-            <option value="score">Sort by score</option>
           </select>
           <button type="button">Columns</button>
           <button type="button">CSV Export</button>
@@ -135,43 +122,22 @@ function PublicationRecordsTable({ records }) {
 
       <div className="journal-table">
         <div className="journal-table-head">
-          {['Faculty', 'Department', 'School', 'Title', 'Journal', 'ISSN', 'Indexing', 'Academic year', 'Self', 'HOD', 'Director', 'Dean', 'VC', 'Scores'].map((column) => (
+          {['Faculty', 'Department', 'School', 'Title', 'Journal', 'ISSN', 'Indexing', 'Academic year'].map((column) => (
             <span key={column}>{column}</span>
           ))}
         </div>
-        {pageItems.map((record, index) => {
-          const id = record.id || `${record.faculty_email}-${index}`
-          return (
-            <div key={id}>
-              <div className="journal-table-row">
-                <strong>{record.full_name || record.faculty_name || record.faculty_email || '-'}</strong>
-                <span>{record.department || '-'}</span>
-                <span>{record.school || '-'}</span>
-                <span>{record.title || '-'}</span>
-                <span>{record.journal || '-'}</span>
-                <span>{record.issn || '-'}</span>
-                <span>{record.indexing || '-'}</span>
-                <span>{record.academic_year || '-'}</span>
-                <span>{record.score ?? '-'}</span>
-                <span>{record.hod_score ?? '-'}</span>
-                <span>{record.director_score ?? '-'}</span>
-                <span>{record.dean_score ?? '-'}</span>
-                <span>{record.vc_score ?? '-'}</span>
-                <button type="button" onClick={() => setExpandedId(expandedId === id ? '' : id)}>View</button>
-              </div>
-              {expandedId === id && (
-                <div className="reviewer-score-drawer">
-                  <span>Self score <strong>{record.score ?? '-'}</strong></span>
-                  <span>HOD score <strong>{record.hod_score ?? '-'}</strong></span>
-                  <span>Director score <strong>{record.director_score ?? '-'}</strong></span>
-                  <span>Dean score <strong>{record.dean_score ?? '-'}</strong></span>
-                  <span>VC score <strong>{record.vc_score ?? '-'}</strong></span>
-                  <span>Final validated <strong>{finalScore(record)}</strong></span>
-                </div>
-              )}
-            </div>
-          )
-        })}
+        {pageItems.map((record, index) => (
+          <div className="journal-table-row" key={record.id || `${record.faculty_email}-${index}`}>
+            <strong>{record.full_name || record.faculty_name || record.faculty_email || '-'}</strong>
+            <span>{record.department || '-'}</span>
+            <span>{record.school || '-'}</span>
+            <span>{record.title || '-'}</span>
+            <span>{record.journal || '-'}</span>
+            <span>{record.issn || '-'}</span>
+            <span>{record.indexing || '-'}</span>
+            <span>{record.academic_year || '-'}</span>
+          </div>
+        ))}
       </div>
 
       <footer className="pagination">

@@ -3,8 +3,14 @@ import FilterBar from '../components/research-analytics/FilterBar'
 import InsightPanel from '../components/research-analytics/InsightPanel'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
 import PageHeader from '../components/research-analytics/PageHeader'
-import PublicationTrendChart from '../components/research-analytics/PublicationTrendChart'
 import Sidebar from '../components/research-analytics/Sidebar'
+import AreaTrendChart from '../components/research-analytics/charts/AreaTrendChart'
+import ComparisonTiles from '../components/research-analytics/charts/ComparisonTiles'
+import DonutChart from '../components/research-analytics/charts/DonutChart'
+import HeatmapChart from '../components/research-analytics/charts/HeatmapChart'
+import RadarChart from '../components/research-analytics/charts/RadarChart'
+import RankingList from '../components/research-analytics/charts/RankingList'
+import StatRing from '../components/research-analytics/charts/StatRing'
 import { useResearchAnalytics } from '../hooks/useResearchAnalytics'
 import AppraisalCompletionAnalyticsPage from './AppraisalCompletionAnalyticsPage'
 import BooksAnalyticsPage from './BooksAnalyticsPage'
@@ -20,467 +26,208 @@ import ResearchGuidanceAnalyticsPage from './ResearchGuidanceAnalyticsPage'
 import SchoolResearchPerformancePage from './SchoolResearchPerformancePage'
 import TeachingResearchAnalyticsPage from './TeachingResearchAnalyticsPage'
 
-function formatInr(value) {
+/* ── Formatters ─────────────────────────────────────────── */
+function fmtInr(v) {
   return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(value || 0)
+    style: 'currency', currency: 'INR', maximumFractionDigits: 0,
+    notation: 'compact', compactDisplay: 'short',
+  }).format(v || 0)
 }
+function pct(v) { return `${Number(v || 0).toFixed(1)}%` }
 
-function percent(value) {
-  return `${Number(value || 0).toFixed(1)}%`
-}
-
-function HorizontalMetricChart({ title, eyebrow, rows, valueKey, labelKey = 'department', formatter = (value) => value }) {
-  const max = Math.max(...rows.map((row) => Number(row[valueKey] || 0)), 1)
-
+/* ── Alert panel ──────────────────────────────────────── */
+function AlertPanel({ alerts }) {
+  if (!alerts.length) return null
   return (
-    <article className="chart-card executive-chart-card">
-      <div className="card-title">
-        <span>{eyebrow}</span>
-        <h2>{title}</h2>
+    <section className="page-section">
+      <div className="page-section-header">
+        <h3>Priority Follow-ups</h3>
       </div>
-      <div className="executive-bars">
-        {rows.length ? rows.slice(0, 8).map((row) => {
-          const value = Number(row[valueKey] || 0)
+      <div className="alert-list">
+        {alerts.map((a, i) => {
+          const type = a.severity === 'risk' ? 'red' : a.severity === 'positive' ? 'green' : 'amber'
+          const icon = a.severity === 'positive' ? '✓' : a.severity === 'risk' ? '✕' : '⚠'
           return (
-            <div className="executive-bar-row" key={`${row[labelKey]}-${title}`}>
-              <span>{row[labelKey] || 'Unknown'}</span>
-              <div><i style={{ width: `${(value / max) * 100}%` }} /></div>
-              <strong>{formatter(value)}</strong>
+            <div key={i} className={`alert-item alert-${type}`}>
+              <span className="alert-icon">{icon}</span>
+              <div className="alert-body">
+                <div className="alert-title">{a.title}</div>
+                <div className="alert-desc">{a.message}</div>
+              </div>
             </div>
           )
-        }) : (
-          <div className="mini-empty">No data available</div>
-        )}
-      </div>
-    </article>
-  )
-}
-
-function CategoryOutputChart({ data }) {
-  return (
-    <article className="chart-card executive-chart-card">
-      <div className="card-title">
-        <span>Research output</span>
-        <h2>Output by category</h2>
-      </div>
-      <div className="category-stack">
-        {data.map((item) => (
-          <div className="category-row" key={item.indexing}>
-            <span>{item.indexing}</span>
-            <strong>{item.total_papers || 0}</strong>
-          </div>
-        ))}
-      </div>
-    </article>
-  )
-}
-
-function PatentStatusCard({ overview }) {
-  const granted = Number(overview?.patents_granted || 0)
-  const total = Number(overview?.total_patents || 0)
-  const pending = Math.max(total - granted, 0)
-  const grantedShare = total ? (granted / total) * 100 : 0
-
-  return (
-    <article className="chart-card executive-chart-card">
-      <div className="card-title">
-        <span>Innovation</span>
-        <h2>Patent status distribution</h2>
-      </div>
-      <div className="patent-donut-wrap">
-        <div
-          className="patent-donut"
-          style={{ background: `conic-gradient(var(--green) 0 ${grantedShare}%, var(--amber) 0 100%)` }}
-        >
-          <strong>{percent(grantedShare)}</strong>
-          <span>granted</span>
-        </div>
-        <div className="status-legend">
-          <span><i className="green-dot" /> Granted <strong>{granted}</strong></span>
-          <span><i className="amber-dot" /> Pending / filed <strong>{pending}</strong></span>
-        </div>
-      </div>
-    </article>
-  )
-}
-
-function ManagementAttentionPanel({ alerts }) {
-  return (
-    <section className="attention-section">
-      <div className="section-title">
-        <span>Management attention</span>
-        <h2>Priority follow-ups</h2>
-      </div>
-      <div className="attention-grid">
-        {alerts.slice(0, 5).map((alert, index) => (
-          <article className={`attention-card ${alert.severity || 'warning'}`} key={`${alert.title}-${index}`}>
-            <div>
-              <strong>{alert.title}</strong>
-              <p>{alert.message}</p>
-            </div>
-            <button type="button">{alert.linkLabel || 'Drill down'}</button>
-          </article>
-        ))}
+        })}
       </div>
     </section>
   )
 }
 
+/* ── Main component ───────────────────────────────────── */
 export default function ResearchAnalyticsDashboard() {
   const { data, filters, updateFilters, loading, error, demoMode, refresh, exportCsv, exportXlsx } = useResearchAnalytics()
   const [activePage, setActivePage] = useState('overview')
+  const [mobileOpen, setMobileOpen] = useState(false)
 
-  if (activePage === 'books') {
+  const sharedProps = { sharedData: data, filters, updateFilters, refresh, exportCsv, exportXlsx, options: data.filterOptions }
+  const perfProps   = { filters, updateFilters, refresh, exportCsv, exportXlsx, options: data.filterOptions }
+
+  /* Sub-page routing */
+  const subPages = {
+    publications:           <JournalPublicationsAnalyticsPage   {...sharedProps} />,
+    books:                  <BooksAnalyticsPage                 {...sharedProps} />,
+    patents:                <PatentsIprAnalyticsPage            {...sharedProps} />,
+    projects:               <ProjectsFundingAnalyticsPage       {...sharedProps} />,
+    guidance:               <ResearchGuidanceAnalyticsPage      {...sharedProps} />,
+    conferences:            <ConferencesAwardsAnalyticsPage     {...sharedProps} />,
+    pipeline:               <InnovationPipelinePage             {...sharedProps} />,
+    'faculty-performance':      <FacultyResearchPerformancePage    {...perfProps} />,
+    'department-performance':   <DepartmentResearchPerformancePage {...perfProps} />,
+    'school-performance':       <SchoolResearchPerformancePage      {...perfProps} />,
+    'teaching-balance':         <TeachingResearchAnalyticsPage      {...perfProps} />,
+    completion:             <AppraisalCompletionAnalyticsPage   {...perfProps} />,
+    'data-quality':         <ResearchDataQualityPage            {...perfProps} />,
+  }
+
+  const sidebar = (
+    <Sidebar
+      activePage={activePage}
+      onPageSelect={setActivePage}
+      mobileOpen={mobileOpen}
+      onMobileClose={() => setMobileOpen(false)}
+    />
+  )
+
+  if (subPages[activePage]) {
     return (
-      <div className="analytics-shell executive-shell">
-        <Sidebar activePage={activePage} onPageSelect={setActivePage} mobileOpen={false} onMobileClose={() => {}} />
-        <BooksAnalyticsPage
-          sharedData={data}
-          filters={filters}
-          updateFilters={updateFilters}
-          refresh={refresh}
-          exportCsv={exportCsv}
-          exportXlsx={exportXlsx}
-          options={data.filterOptions}
-        />
+      <div className="analytics-shell">
+        {sidebar}
+        {subPages[activePage]}
       </div>
     )
   }
 
-  if (activePage === 'publications') {
-    return (
-      <div className="analytics-shell executive-shell">
-        <Sidebar activePage={activePage} onPageSelect={setActivePage} mobileOpen={false} onMobileClose={() => {}} />
-        <JournalPublicationsAnalyticsPage
-          sharedData={data}
-          filters={filters}
-          updateFilters={updateFilters}
-          refresh={refresh}
-          exportCsv={exportCsv}
-          exportXlsx={exportXlsx}
-          options={data.filterOptions}
-        />
-      </div>
-    )
-  }
-
-  if (activePage === 'patents') {
-    return (
-      <div className="analytics-shell executive-shell">
-        <Sidebar activePage={activePage} onPageSelect={setActivePage} mobileOpen={false} onMobileClose={() => {}} />
-        <PatentsIprAnalyticsPage
-          sharedData={data}
-          filters={filters}
-          updateFilters={updateFilters}
-          refresh={refresh}
-          exportCsv={exportCsv}
-          exportXlsx={exportXlsx}
-          options={data.filterOptions}
-        />
-      </div>
-    )
-  }
-
-  if (activePage === 'projects') {
-    return (
-      <div className="analytics-shell executive-shell">
-        <Sidebar activePage={activePage} onPageSelect={setActivePage} mobileOpen={false} onMobileClose={() => {}} />
-        <ProjectsFundingAnalyticsPage
-          sharedData={data}
-          filters={filters}
-          updateFilters={updateFilters}
-          refresh={refresh}
-          exportCsv={exportCsv}
-          exportXlsx={exportXlsx}
-          options={data.filterOptions}
-        />
-      </div>
-    )
-  }
-
-  if (activePage === 'guidance') {
-    return (
-      <div className="analytics-shell executive-shell">
-        <Sidebar activePage={activePage} onPageSelect={setActivePage} mobileOpen={false} onMobileClose={() => {}} />
-        <ResearchGuidanceAnalyticsPage
-          sharedData={data}
-          filters={filters}
-          updateFilters={updateFilters}
-          refresh={refresh}
-          exportCsv={exportCsv}
-          exportXlsx={exportXlsx}
-          options={data.filterOptions}
-        />
-      </div>
-    )
-  }
-
-  if (activePage === 'conferences') {
-    return (
-      <div className="analytics-shell executive-shell">
-        <Sidebar activePage={activePage} onPageSelect={setActivePage} mobileOpen={false} onMobileClose={() => {}} />
-        <ConferencesAwardsAnalyticsPage
-          sharedData={data}
-          filters={filters}
-          updateFilters={updateFilters}
-          refresh={refresh}
-          exportCsv={exportCsv}
-          exportXlsx={exportXlsx}
-          options={data.filterOptions}
-        />
-      </div>
-    )
-  }
-
-  if (activePage === 'pipeline') {
-    return (
-      <div className="analytics-shell executive-shell">
-        <Sidebar activePage={activePage} onPageSelect={setActivePage} mobileOpen={false} onMobileClose={() => {}} />
-        <InnovationPipelinePage
-          sharedData={data}
-          filters={filters}
-          updateFilters={updateFilters}
-          refresh={refresh}
-          exportCsv={exportCsv}
-          exportXlsx={exportXlsx}
-          options={data.filterOptions}
-        />
-      </div>
-    )
-  }
-
-  if (activePage === 'faculty-performance') {
-    return (
-      <div className="analytics-shell executive-shell">
-        <Sidebar activePage={activePage} onPageSelect={setActivePage} mobileOpen={false} onMobileClose={() => {}} />
-        <FacultyResearchPerformancePage
-          filters={filters}
-          updateFilters={updateFilters}
-          refresh={refresh}
-          exportCsv={exportCsv}
-          exportXlsx={exportXlsx}
-          options={data.filterOptions}
-        />
-      </div>
-    )
-  }
-
-  if (activePage === 'department-performance') {
-    return (
-      <div className="analytics-shell executive-shell">
-        <Sidebar activePage={activePage} onPageSelect={setActivePage} mobileOpen={false} onMobileClose={() => {}} />
-        <DepartmentResearchPerformancePage
-          filters={filters}
-          updateFilters={updateFilters}
-          refresh={refresh}
-          exportCsv={exportCsv}
-          exportXlsx={exportXlsx}
-          options={data.filterOptions}
-        />
-      </div>
-    )
-  }
-
-  if (activePage === 'school-performance') {
-    return (
-      <div className="analytics-shell executive-shell">
-        <Sidebar activePage={activePage} onPageSelect={setActivePage} mobileOpen={false} onMobileClose={() => {}} />
-        <SchoolResearchPerformancePage
-          filters={filters}
-          updateFilters={updateFilters}
-          refresh={refresh}
-          exportCsv={exportCsv}
-          exportXlsx={exportXlsx}
-          options={data.filterOptions}
-        />
-      </div>
-    )
-  }
-
-  if (activePage === 'teaching-balance') {
-    return (
-      <div className="analytics-shell executive-shell">
-        <Sidebar activePage={activePage} onPageSelect={setActivePage} mobileOpen={false} onMobileClose={() => {}} />
-        <TeachingResearchAnalyticsPage
-          filters={filters}
-          updateFilters={updateFilters}
-          refresh={refresh}
-          exportCsv={exportCsv}
-          exportXlsx={exportXlsx}
-          options={data.filterOptions}
-        />
-      </div>
-    )
-  }
-
-  if (activePage === 'completion') {
-    return (
-      <div className="analytics-shell executive-shell">
-        <Sidebar activePage={activePage} onPageSelect={setActivePage} mobileOpen={false} onMobileClose={() => {}} />
-        <AppraisalCompletionAnalyticsPage
-          filters={filters}
-          updateFilters={updateFilters}
-          refresh={refresh}
-          exportCsv={exportCsv}
-          exportXlsx={exportXlsx}
-          options={data.filterOptions}
-        />
-      </div>
-    )
-  }
-
-  if (activePage === 'data-quality') {
-    return (
-      <div className="analytics-shell executive-shell">
-        <Sidebar activePage={activePage} onPageSelect={setActivePage} mobileOpen={false} onMobileClose={() => {}} />
-        <ResearchDataQualityPage
-          filters={filters}
-          updateFilters={updateFilters}
-          refresh={refresh}
-          exportCsv={exportCsv}
-          exportXlsx={exportXlsx}
-          options={data.filterOptions}
-        />
-      </div>
-    )
-  }
-
-  function handleResetFilters() {
+  /* ── Overview ─────────────────────────────────────────── */
+  function handleReset() {
     updateFilters({
-      page: 1,
-      page_size: 10,
-      search: '',
-      school: '',
-      department: '',
-      designation: '',
-      category: '',
-      indexing: '',
-      year: '',
-      sort_by: 'total_research_papers',
-      sort_order: 'desc',
+      page: 1, page_size: 10, search: '', school: '',
+      department: '', indexing: '', year: '',
+      sort_by: 'total_research_papers', sort_order: 'desc',
     })
   }
 
-  const overview = data.overview || {}
-  const departments = data.departments?.items || []
-  const activeFaculty = overview.total_active_faculty || overview.total_faculty || 0
-  const publishingFaculty = overview.faculty_with_journal_publication || overview.faculty_with_research || 0
-  const participationRate = overview.publication_participation_rate || ((publishingFaculty / (activeFaculty || 1)) * 100)
-  const inactiveResearchers = Math.max(activeFaculty - publishingFaculty, 0)
-  const categoryCount = [
-    overview.total_journal_publications || overview.total_research_papers,
-    overview.total_book_publications || overview.total_books,
-    overview.total_patents,
-    overview.total_research_projects || overview.total_projects,
-    overview.total_research_proposals,
-    overview.total_research_scholars_guided,
-    overview.total_conferences,
-    overview.total_awards,
-    overview.total_products_developed,
+  const ov      = data.overview || {}
+  const depts   = data.departments?.items || []
+  const active  = ov.total_active_faculty || ov.total_faculty || 0
+  const pub     = ov.faculty_with_journal_publication || ov.faculty_with_research || 0
+  const partPct = ov.publication_participation_rate || ((pub / (active || 1)) * 100)
+  const inactive = Math.max(active - pub, 0)
+  const totalPatents = Number(ov.total_patents || 0)
+  const patentsGranted = Number(ov.patents_granted || 0)
+  const grantRate = totalPatents ? (patentsGranted / totalPatents) * 100 : 0
+  const researchDimensions = [
+    ov.total_journal_publications || ov.total_research_papers,
+    ov.total_book_publications || ov.total_books,
+    ov.total_patents,
+    ov.total_research_projects || ov.total_projects,
+    ov.total_research_scholars_guided,
+    ov.total_conferences,
+    ov.total_awards,
   ].filter((value) => Number(value || 0) > 0).length
-  const diversityScore = activeFaculty ? categoryCount / activeFaculty : 0
+  const averageDiversity = Number(ov.average_research_diversity_score ?? ov.avg_research_diversity_score ?? ov.research_diversity_score ?? researchDimensions)
+  const radarAxes = [
+    { key: 'journals', label: 'Journals' },
+    { key: 'books', label: 'Books' },
+    { key: 'patents', label: 'Patents' },
+    { key: 'projects', label: 'Projects' },
+    { key: 'guidance', label: 'Guidance' },
+    { key: 'conferences', label: 'Conferences' },
+  ]
+  const radarRows = [{
+    label: 'University',
+    journals: Number(ov.total_journal_publications || ov.total_research_papers || 0),
+    books: Number(ov.total_book_publications || ov.total_books || 0),
+    patents: totalPatents,
+    projects: Number(ov.total_research_projects || ov.total_projects || 0),
+    guidance: Number(ov.total_research_scholars_guided || 0),
+    conferences: Number(ov.total_conferences || 0),
+  }]
 
   const primaryKpis = [
-    { label: 'Active Faculty', value: activeFaculty, icon: 'AF', subtext: `${publishingFaculty} publishing faculty` },
-    { label: 'Journal Publications', value: overview.total_journal_publications || overview.total_research_papers || 0, icon: 'JP', subtext: 'Valid journal records' },
-    { label: 'Participation Rate', value: percent(participationRate), icon: 'PR', subtext: 'Faculty with publications' },
-    { label: 'Total Patents', value: overview.total_patents || 0, icon: 'PT', subtext: `${overview.patents_granted || 0} granted` },
-    { label: 'Sanctioned Funding', value: formatInr(overview.total_sanctioned_funding || overview.total_funding), icon: 'INR', subtext: 'Projects and external grants' },
-    { label: 'Avg Diversity Score', value: diversityScore.toFixed(2), icon: 'DS', subtext: 'Categories per active faculty' },
+    { label: 'Active Faculty',       value: active,  icon: '👤', subtext: `${pub} publishing` },
+    { label: 'Journal Papers',       value: ov.total_journal_publications || ov.total_research_papers || 0, icon: '📄', subtext: 'Peer-reviewed' },
+    { label: 'Participation Rate',   value: pct(partPct),                                          icon: '🎯', subtext: 'Faculty with publications' },
+    { label: 'Total Patents',        value: ov.total_patents || 0,                                 icon: '💡', subtext: `${ov.patents_granted || 0} granted` },
+    { label: 'Sanctioned Funding',   value: fmtInr(ov.total_sanctioned_funding || ov.total_funding), icon: '💰', subtext: 'Grants & projects' },
+    { label: 'Research Diversity',   value: averageDiversity.toFixed(1),                           icon: 'RD', subtext: `${researchDimensions} active research areas` },
   ]
 
   const secondaryKpis = [
-    { label: 'Books Published', value: overview.total_book_publications || overview.total_books || 0 },
-    { label: 'Patents Granted', value: overview.patents_granted || 0 },
-    { label: 'Research Proposals', value: overview.total_research_proposals || 0 },
-    { label: 'Students Guided', value: overview.total_research_scholars_guided || 0 },
-    { label: 'Conferences', value: overview.total_conferences || 0 },
-    { label: 'Awards', value: overview.total_awards || 0 },
-    { label: 'Products Developed', value: overview.total_products_developed || 0 },
-    { label: 'Faculty with No Research Activity', value: inactiveResearchers },
+    { label: 'Books Published',       value: ov.total_book_publications || ov.total_books || 0 },
+    { label: 'Conferences',           value: ov.total_conferences || 0 },
+    { label: 'Research Projects',     value: ov.total_research_projects || ov.total_projects || 0 },
+    { label: 'Students Guided',       value: ov.total_research_scholars_guided || 0 },
+    { label: 'Awards',                value: ov.total_awards || 0 },
+    { label: 'Inactive Researchers',  value: inactive },
   ]
 
-  const dynamicInsights = (data.insights || []).slice(0, 5).map((item) => ({
-    title: 'Research Insight',
-    explanation: item,
-    supporting_metric: 'Calculated from live analytics',
-    severity: 'neutral',
-  }))
-
-  const fallbackInsights = [
+  const insights = [
     {
       title: 'Publication Participation',
-      explanation: `${percent(participationRate)} of active faculty have at least one journal publication.`,
-      supporting_metric: `${publishingFaculty} of ${activeFaculty} active faculty`,
-      severity: participationRate >= 50 ? 'positive' : 'warning',
+      explanation: `${pct(partPct)} of active faculty have at least one journal publication recorded.`,
+      supporting_metric: `${pub} of ${active} active faculty`,
+      severity: partPct >= 50 ? 'positive' : 'warning',
     },
     {
       title: 'Research Funding',
-      explanation: `Institutional sanctioned funding is ${formatInr(overview.total_sanctioned_funding || overview.total_funding)}.`,
-      supporting_metric: `${formatInr(overview.funding_per_active_faculty || 0)} per active faculty`,
+      explanation: `Total sanctioned institutional funding is ${fmtInr(ov.total_sanctioned_funding || ov.total_funding)}.`,
+      supporting_metric: `Across ${ov.total_projects || 0} research projects`,
       severity: 'positive',
     },
     {
       title: 'Inactive Researchers',
-      explanation: `${inactiveResearchers} active faculty currently show no journal publication contribution.`,
-      supporting_metric: `${percent((inactiveResearchers / (activeFaculty || 1)) * 100)} inactive by publication`,
-      severity: inactiveResearchers > 0 ? 'warning' : 'positive',
+      explanation: `${inactive} active faculty currently have no journal publication for the selected filters.`,
+      supporting_metric: `${pct((inactive / (active || 1)) * 100)} of total faculty`,
+      severity: inactive > 5 ? 'warning' : 'neutral',
     },
   ]
 
-  const lowParticipationDepartments = departments.filter((dept) => Number(dept.publication_participation_percentage || 0) < 30)
-  const noPatentDepartments = departments.filter((dept) => Number(dept.patents || 0) === 0)
-  const incompleteRecords = Object.values(data.dataQuality || {}).reduce((sum, value) => sum + Number(value || 0), 0)
   const alerts = [
-    lowParticipationDepartments.length > 0 && {
-      title: 'Low participation departments',
-      message: `${lowParticipationDepartments.length} departments are below 30% publication participation.`,
-      linkLabel: 'View department analytics',
+    depts.filter((d) => Number(d.publication_participation_percentage || 0) < 30).length > 0 && {
+      title: 'Low-participation departments',
+      message: `${depts.filter((d) => Number(d.publication_participation_percentage || 0) < 30).length} departments are below 30% participation.`,
       severity: 'warning',
     },
-    noPatentDepartments.length > 0 && {
-      title: 'No patents or IPR',
-      message: `${noPatentDepartments.length} departments have no patent/IPR contribution in the selected filters.`,
-      linkLabel: 'Open innovation view',
+    inactive > 0 && {
+      title: 'Inactive research contributors',
+      message: `${inactive} faculty members have zero publication activity in the current view.`,
       severity: 'warning',
     },
-    incompleteRecords > 0 && {
-      title: 'Incomplete research records',
-      message: `${incompleteRecords} data-quality issues require verification before final reporting.`,
-      linkLabel: 'Review data quality',
+    (ov.total_patents || 0) === 0 && {
+      title: 'No patents on record',
+      message: 'No patents are recorded for the current filter selection.',
       severity: 'risk',
-    },
-    inactiveResearchers > 0 && {
-      title: 'Inactive research contribution',
-      message: `${inactiveResearchers} active faculty have no publication activity in the current overview.`,
-      linkLabel: 'View faculty list',
-      severity: 'warning',
     },
   ].filter(Boolean)
 
   return (
-    <div className="analytics-shell executive-shell">
-      <Sidebar activePage={activePage} onPageSelect={setActivePage} mobileOpen={false} onMobileClose={() => {}} />
+    <div className="analytics-shell">
+      {sidebar}
 
-      <main className="research-page executive-page">
+      <main className="research-page">
         <PageHeader
-          title="Research Analytics Overview"
-          description="Institutional research performance, participation, innovation, and funding summary"
-          lastRefreshed="Just now"
+          title="Executive Research Overview"
+          description="Institutional research performance, participation, innovation and funding at a glance."
           onRefresh={refresh}
           onExportCsv={exportCsv}
           onExportXlsx={exportXlsx}
-          onMobileMenuToggle={() => {}}
+          onMobileMenuToggle={() => setMobileOpen(true)}
         />
 
         <FilterBar
           filters={filters}
           options={data.filterOptions}
           onChange={updateFilters}
-          onReset={handleResetFilters}
+          onReset={handleReset}
         />
 
         {error && !loading && (
@@ -490,53 +237,85 @@ export default function ResearchAnalyticsDashboard() {
         )}
 
         {loading ? (
-          <section className="skeleton-grid" aria-label="Loading analytics">
-            {Array.from({ length: 6 }).map((_, index) => <span key={index} />)}
+          <section className="skeleton-grid" aria-label="Loading">
+            {Array.from({ length: 6 }).map((_, i) => <span key={i} />)}
           </section>
         ) : (
           <>
             <MetricCardGrid primaryKpis={primaryKpis} secondaryKpis={secondaryKpis} />
 
-            <InsightPanel insights={dynamicInsights.length ? dynamicInsights : fallbackInsights} />
+            <div className="stat-rings-row">
+              <StatRing value={partPct} label="Publication Participation" color="#6366f1" />
+              <StatRing value={grantRate} label="Patent Grant Rate" color="#22c55e" />
+              <StatRing value={(inactive / (active || 1)) * 100} label="Inactive Researchers" color="#ef4444" />
+            </div>
 
-            <section className="executive-chart-row two-col">
-              <CategoryOutputChart data={data.indexing || []} />
-              <PublicationTrendChart data={data.trend || []} />
-            </section>
+            <InsightPanel insights={insights} />
 
-            <section className="executive-chart-row two-col">
-              <HorizontalMetricChart
+            <div className="chart-grid">
+              <DonutChart
+                title="Publications by indexing"
+                subtitle="Research output"
+                rows={(data.indexing || []).map((d) => ({ label: d.indexing, value: d.total_papers || 0 }))}
+                emptyMessage="No indexing data"
+              />
+              <AreaTrendChart
+                title="Research paper trend"
+                subtitle="Year-wise output"
+                rows={(data.trend || []).map((d) => ({ label: d.year || d.academic_year, value: d.total_papers || 0 }))}
+                color="var(--indigo)"
+              />
+              <RankingList
                 title="Publications by department"
-                eyebrow="Department analytics"
-                rows={departments}
-                valueKey="journal_publications"
+                subtitle="Dept analytics"
+                rows={depts.map((d) => ({ label: d.department, value: d.journal_publications || 0 }))}
               />
-              <HorizontalMetricChart
+              <HeatmapChart
                 title="Participation rate by department"
-                eyebrow="Faculty participation"
-                rows={departments}
-                valueKey="publication_participation_percentage"
-                formatter={(value) => percent(value)}
+                subtitle="Participation"
+                rows={depts.map((d) => ({ label: d.department, participation: Number(d.publication_participation_percentage || 0).toFixed(0) }))}
+                categories={['participation']}
+                formatter={(v) => `${v}%`}
+              />
+              <RankingList
+                title="Research funding by dept"
+                subtitle="Project funding"
+                rows={depts.map((d) => ({ label: d.department, value: Number(d.total_project_funding || 0) }))}
+                formatter={fmtInr}
+              />
+              <DonutChart
+                title="Patent status"
+                subtitle="Innovation"
+                rows={[
+                  { label: 'Granted', value: Number(ov.patents_granted || 0) },
+                  { label: 'Pending', value: Math.max(Number(ov.total_patents || 0) - Number(ov.patents_granted || 0), 0) },
+                ]}
+                emptyMessage="No patent data"
+              />
+            </div>
+
+            <section className="executive-chart-row">
+              <RadarChart
+                title="University Research Profile"
+                subtitle="Institutional dimensions"
+                axes={radarAxes}
+                rows={radarRows}
               />
             </section>
 
-            <section className="executive-chart-row two-col">
-              <HorizontalMetricChart
-                title="Research funding by department"
-                eyebrow="Project funding"
-                rows={departments}
-                valueKey="total_project_funding"
-                formatter={formatInr}
-              />
-              <PatentStatusCard overview={overview} />
-            </section>
+            <ComparisonTiles
+              title="Research snapshot"
+              subtitle="Key comparisons"
+              items={[
+                { label: 'Publishing Faculty', value: pub, subtext: `of ${active} active`, color: '#6366f1' },
+                { label: 'Participation Rate', value: pct(partPct), color: '#22c55e', badge: partPct >= 50 ? '✓ Good' : '⚠ Low' },
+                { label: 'Inactive Researchers', value: inactive, color: inactive > 5 ? '#ef4444' : '#f59e0b', subtext: 'No publications' },
+                { label: 'Research Diversity', value: averageDiversity.toFixed(1), color: '#06b6d4', subtext: `${researchDimensions} active areas` },
+              ]}
+              style={{ marginBottom: '28px' }}
+            />
 
-            <ManagementAttentionPanel alerts={alerts.length ? alerts : [{
-              title: 'No immediate alerts',
-              message: 'No major management attention items were detected for the selected filters.',
-              linkLabel: 'Continue monitoring',
-              severity: 'positive',
-            }]} />
+            <AlertPanel alerts={alerts} />
           </>
         )}
       </main>

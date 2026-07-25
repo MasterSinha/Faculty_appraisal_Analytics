@@ -2,6 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import FilterBar from '../components/research-analytics/FilterBar'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
 import PageHeader from '../components/research-analytics/PageHeader'
+import AreaTrendChart from '../components/research-analytics/charts/AreaTrendChart'
+import BubbleCloudChart from '../components/research-analytics/charts/BubbleCloudChart'
+import DonutChart from '../components/research-analytics/charts/DonutChart'
+import HorizontalBarChart from '../components/research-analytics/charts/HorizontalBarChart'
+import RankingList from '../components/research-analytics/charts/RankingList'
+import ScatterChart from '../components/research-analytics/charts/ScatterChart'
+import StatRing from '../components/research-analytics/charts/StatRing'
+import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
 
@@ -38,28 +46,14 @@ function averageScore(records) {
 }
 
 function MiniBarChart({ title, subtitle, rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber }) {
-  const max = Math.max(...rows.map((row) => Number(row[valueKey] || 0)), 1)
-
-  return (
-    <article className="chart-card conference-chart-card">
-      <div className="card-title">
-        <span>{subtitle}</span>
-        <h2>{title}</h2>
-      </div>
-      <div className="books-bars">
-        {rows.length ? rows.slice(0, 10).map((row) => {
-          const value = Number(row[valueKey] || 0)
-          return (
-            <div className="books-bar-row" key={`${title}-${row[labelKey]}`}>
-              <span>{row[labelKey]}</span>
-              <div><i style={{ width: `${(value / max) * 100}%` }} /></div>
-              <strong>{formatter(value)}</strong>
-            </div>
-          )
-        }) : <div className="mini-empty">No conference or award data available</div>}
-      </div>
-    </article>
-  )
+  const chartRows = rows.map((row) => ({ ...row, label: row[labelKey], value: Number(row[valueKey] || 0), x: Number(row.value || 0), y: Number(row.publications || row.value || 0) }))
+  const context = `${title} ${subtitle}`.toLowerCase()
+  if (context.includes('year') || context.includes('trend')) return <AreaTrendChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('level') || context.includes('national versus')) return <DonutChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('versus') || context.includes('association')) return <ScatterChart title={title} subtitle={subtitle} rows={chartRows} xLabel="Conference activity" yLabel="Publication output" xFormatter={formatter} yFormatter={formatter} />
+  if (context.includes('department') || context.includes('school')) return <HorizontalBarChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('faculty') || context.includes('institution') || context.includes('agency') || context.includes('organis')) return <BubbleCloudChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  return <TileGrid title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
 }
 
 function InsightCard({ title, items }) {
@@ -91,8 +85,8 @@ function RecordsTable({ title, mode, records }) {
   const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize)
   const totalPages = Math.max(Math.ceil(filtered.length / pageSize), 1)
   const columns = mode === 'conference'
-    ? ['Faculty', 'Department', 'Title', 'Type', 'Organisation', 'Level', 'Academic year', 'Score']
-    : ['Faculty', 'Department', 'Award title', 'Award date', 'Agency', 'Level', 'Academic year', 'Score']
+    ? ['Faculty', 'Department', 'Title', 'Type', 'Organisation', 'Level', 'Academic year']
+    : ['Faculty', 'Department', 'Award title', 'Award date', 'Agency', 'Level', 'Academic year']
 
   return (
     <article className="table-card conference-table-card">
@@ -107,7 +101,6 @@ function RecordsTable({ title, mode, records }) {
             <option value="academic_year">Sort by year</option>
             <option value="department">Sort by department</option>
             <option value="level">Sort by level</option>
-            <option value="score">Sort by score</option>
           </select>
           <button type="button">CSV Export</button>
         </div>
@@ -135,7 +128,6 @@ function RecordsTable({ title, mode, records }) {
             )}
             <span>{record.level || '-'}</span>
             <span>{record.academic_year || '-'}</span>
-            <span>{finalScore(record)}</span>
           </div>
         ))}
       </div>
@@ -306,14 +298,21 @@ export default function ConferencesAwardsAnalyticsPage({ sharedData, filters, up
           </nav>
 
           {activeTab === 'Overview' && (
-            <section className="executive-chart-row two-col">
-              <MiniBarChart title="Conference trend" subtitle="Academic year" rows={conferenceYearRows} />
-              <MiniBarChart title="Conference level distribution" subtitle="Level mix" rows={conferenceLevelRows} />
-              <MiniBarChart title="Awards by department" subtitle="Department recognition" rows={awardDepartmentRows} />
-              <MiniBarChart title="Awards by level" subtitle="Recognition level" rows={awardLevelRows} />
-              <MiniBarChart title="Conference participation versus publication output" subtitle="Department association" rows={associationRows} formatter={(value) => `${value} conf`} />
-              <MiniBarChart title="Top organising institutions or awarding agencies" subtitle="External bodies" rows={[...organisationRows.slice(0, 5), ...awardAgencyRows.slice(0, 5)]} />
-            </section>
+            <>
+              <div className="stat-rings-row">
+                <StatRing value={conferences.length ? (conferences.filter(isInternational).length / conferences.length) * 100 : 0} label="International Conference Rate" color="#6366f1" />
+                <StatRing value={activeFaculty ? (awardFaculty.size / activeFaculty) * 100 : 0} label="Award Participation" color="#f59e0b" />
+              </div>
+              <section className="executive-chart-row two-col">
+                <MiniBarChart title="Conference trend" subtitle="Academic year" rows={conferenceYearRows} />
+                <MiniBarChart title="Conference level distribution" subtitle="Level mix" rows={conferenceLevelRows} />
+                <RankingList title="Top conference departments" subtitle="Department participation" rows={conferenceDepartmentRows} />
+                <MiniBarChart title="Awards by department" subtitle="Department recognition" rows={awardDepartmentRows} />
+                <MiniBarChart title="Awards by level" subtitle="Recognition level" rows={awardLevelRows} />
+                <MiniBarChart title="Conference participation versus publication output" subtitle="Department association" rows={associationRows} formatter={(value) => `${value} conf`} />
+                <MiniBarChart title="Top organising institutions or awarding agencies" subtitle="External bodies" rows={[...organisationRows.slice(0, 5), ...awardAgencyRows.slice(0, 5)]} />
+              </section>
+            </>
           )}
 
           {activeTab === 'Conferences' && (

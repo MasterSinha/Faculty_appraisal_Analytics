@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import FilterBar from '../components/research-analytics/FilterBar'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
 import PageHeader from '../components/research-analytics/PageHeader'
+import AreaTrendChart from '../components/research-analytics/charts/AreaTrendChart'
+import BubbleCloudChart from '../components/research-analytics/charts/BubbleCloudChart'
+import DonutChart from '../components/research-analytics/charts/DonutChart'
+import HorizontalBarChart from '../components/research-analytics/charts/HorizontalBarChart'
+import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
 
@@ -56,28 +61,14 @@ function groupBy(records, keyGetter) {
 }
 
 function MiniBarChart({ title, subtitle, rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber }) {
-  const max = Math.max(...rows.map((row) => Number(row[valueKey] || 0)), 1)
-
-  return (
-    <article className="chart-card patents-chart-card">
-      <div className="card-title">
-        <span>{subtitle}</span>
-        <h2>{title}</h2>
-      </div>
-      <div className="books-bars">
-        {rows.length ? rows.slice(0, 10).map((row) => {
-          const value = Number(row[valueKey] || 0)
-          return (
-            <div className="books-bar-row" key={`${title}-${row[labelKey]}`}>
-              <span>{row[labelKey]}</span>
-              <div><i style={{ width: `${(value / max) * 100}%` }} /></div>
-              <strong>{formatter(value)}</strong>
-            </div>
-          )
-        }) : <div className="mini-empty">No patent/IPR data available</div>}
-      </div>
-    </article>
-  )
+  const chartRows = rows.map((row) => ({ ...row, label: row[labelKey], value: Number(row[valueKey] || 0) }))
+  const context = `${title} ${subtitle}`.toLowerCase()
+  if (context.includes('year') || context.includes('trend') || context.includes('date')) return <AreaTrendChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('scope') || context.includes('share')) return <DonutChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('department') || context.includes('school output') || context.includes('participation')) return <HorizontalBarChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('faculty')) return <BubbleCloudChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('ipr')) return <TileGrid title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  return <BubbleCloudChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
 }
 
 function StatusDonut({ title, rows }) {
@@ -162,17 +153,16 @@ function RecordsTable({ patents, iprRecords }) {
             <option value="academic_year">Sort by year</option>
             <option value="patent_date">Sort by patent date</option>
             <option value="ipr_date">Sort by IPR date</option>
-            <option value="score">Sort by score</option>
           </select>
           <button type="button">CSV Export</button>
         </div>
       </div>
 
       <div className="patents-table">
-        <div className="patents-table-head">
+        <div className={`patents-table-head ${mode}`}>
           {(mode === 'patents'
-            ? ['Faculty', 'Department', 'School', 'Patent title', 'Type', 'Scope', 'Patent date', 'Status', 'File number', 'Academic year', 'Self score', 'Final score', 'Flags']
-            : ['Faculty', 'Department', 'Title', 'Scope', 'IPR date', 'Status', 'File number', 'Score', 'Flags']
+            ? ['Faculty', 'Department', 'School', 'Patent title', 'Type', 'Scope', 'Patent date', 'Status', 'File number', 'Academic year', 'Flags']
+            : ['Faculty', 'Department', 'Title', 'Scope', 'IPR date', 'Status', 'File number', 'Flags']
           ).map((column) => <span key={column}>{column}</span>)}
         </div>
         {pageItems.map((record, index) => {
@@ -195,8 +185,6 @@ function RecordsTable({ patents, iprRecords }) {
               <span>{normalizeStatus(record.patent_status || record.ipr_status)}</span>
               <span>{record.file_no || '-'}</span>
               {mode === 'patents' && <span>{record.academic_year || '-'}</span>}
-              <span>{record.score ?? '-'}</span>
-              {mode === 'patents' && <span>{finalScore(record)}</span>}
               <span className="flag-cell">{flags.length ? flags.join(', ') : 'Clear'}</span>
             </div>
           )

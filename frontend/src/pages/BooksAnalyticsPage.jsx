@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import FilterBar from '../components/research-analytics/FilterBar'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
 import PageHeader from '../components/research-analytics/PageHeader'
+import AreaTrendChart from '../components/research-analytics/charts/AreaTrendChart'
+import BubbleCloudChart from '../components/research-analytics/charts/BubbleCloudChart'
+import DonutChart from '../components/research-analytics/charts/DonutChart'
+import HorizontalBarChart from '../components/research-analytics/charts/HorizontalBarChart'
+import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
 
@@ -38,28 +43,14 @@ function groupBy(records, keyGetter) {
 }
 
 function MiniBarChart({ title, subtitle, rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber }) {
-  const max = Math.max(...rows.map((row) => Number(row[valueKey] || 0)), 1)
-
-  return (
-    <article className="chart-card books-chart-card">
-      <div className="card-title">
-        <span>{subtitle}</span>
-        <h2>{title}</h2>
-      </div>
-      <div className="books-bars">
-        {rows.length ? rows.slice(0, 10).map((row) => {
-          const value = Number(row[valueKey] || 0)
-          return (
-            <div className="books-bar-row" key={`${title}-${row[labelKey]}`}>
-              <span>{row[labelKey]}</span>
-              <div><i style={{ width: `${(value / max) * 100}%` }} /></div>
-              <strong>{formatter(value)}</strong>
-            </div>
-          )
-        }) : <div className="mini-empty">No book data available</div>}
-      </div>
-    </article>
-  )
+  const chartRows = rows.map((row) => ({ ...row, label: row[labelKey], value: Number(row[valueKey] || 0) }))
+  const context = `${title} ${subtitle}`.toLowerCase()
+  if (context.includes('year') || context.includes('trend')) return <AreaTrendChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('first-author') || context.includes('co-authored') || context.includes('both journals')) return <DonutChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('publisher')) return <BubbleCloudChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('department output') || context.includes('department book')) return <HorizontalBarChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('participation') || context.includes('school')) return <TileGrid title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  return <BubbleCloudChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
 }
 
 function BooksRecordsTable({ records }) {
@@ -91,7 +82,6 @@ function BooksRecordsTable({ records }) {
             <option value="academic_year">Sort by year</option>
             <option value="publisher">Sort by publisher</option>
             <option value="department">Sort by department</option>
-            <option value="score">Sort by score</option>
           </select>
           <button type="button">Columns</button>
           <button type="button">CSV Export</button>
@@ -100,7 +90,7 @@ function BooksRecordsTable({ records }) {
 
       <div className="books-table">
         <div className="books-table-head">
-          {['Faculty', 'School', 'Department', 'Title', 'Book', 'ISBN', 'ISSN', 'Publisher', 'Co-author', 'First-author', 'Academic year', 'Self score', 'Final score'].map((column) => (
+          {['Faculty', 'School', 'Department', 'Title', 'Book', 'ISBN', 'ISSN', 'Publisher', 'Co-author', 'First-author', 'Academic year'].map((column) => (
             <span key={column}>{column}</span>
           ))}
         </div>
@@ -117,8 +107,6 @@ function BooksRecordsTable({ records }) {
             <span>{record.coauthor || '-'}</span>
             <span>{record.first_author || '-'}</span>
             <span>{record.academic_year || '-'}</span>
-            <span>{record.score ?? '-'}</span>
-            <span>{record.vc_score ?? record.dean_score ?? record.director_score ?? record.hod_score ?? record.score ?? '-'}</span>
           </div>
         ))}
       </div>

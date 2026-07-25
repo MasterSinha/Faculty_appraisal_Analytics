@@ -2,6 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import FilterBar from '../components/research-analytics/FilterBar'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
 import PageHeader from '../components/research-analytics/PageHeader'
+import AreaTrendChart from '../components/research-analytics/charts/AreaTrendChart'
+import BubbleCloudChart from '../components/research-analytics/charts/BubbleCloudChart'
+import DonutChart from '../components/research-analytics/charts/DonutChart'
+import HorizontalBarChart from '../components/research-analytics/charts/HorizontalBarChart'
+import RadarChart from '../components/research-analytics/charts/RadarChart'
+import RankingList from '../components/research-analytics/charts/RankingList'
+import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
 
@@ -27,28 +34,13 @@ function groupBy(records, keyGetter) {
 }
 
 function MiniBarChart({ title, subtitle, rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber }) {
-  const max = Math.max(...rows.map((row) => Number(row[valueKey] || 0)), 1)
-
-  return (
-    <article className="chart-card school-performance-chart-card">
-      <div className="card-title">
-        <span>{subtitle}</span>
-        <h2>{title}</h2>
-      </div>
-      <div className="books-bars">
-        {rows.length ? rows.slice(0, 10).map((row) => {
-          const value = Number(row[valueKey] || 0)
-          return (
-            <div className="books-bar-row" key={`${title}-${row[labelKey]}`}>
-              <span>{row[labelKey]}</span>
-              <div><i style={{ width: `${(value / max) * 100}%` }} /></div>
-              <strong>{formatter(value)}</strong>
-            </div>
-          )
-        }) : <div className="mini-empty">No school performance data available</div>}
-      </div>
-    </article>
-  )
+  const chartRows = rows.map((row) => ({ ...row, label: row[labelKey], value: Number(row[valueKey] || 0) }))
+  const context = `${title} ${subtitle}`.toLowerCase()
+  if (context.includes('trend') || context.includes('growth') || context.includes('year')) return <AreaTrendChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('funding') || context.includes('contribution') || context.includes('patent')) return <DonutChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('diversity') || context.includes('ranking')) return <BubbleCloudChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('participation') || context.includes('department comparison')) return <HorizontalBarChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  return <TileGrid title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
 }
 
 function CategoryComparison({ rows }) {
@@ -322,6 +314,21 @@ export default function SchoolResearchPerformancePage({ filters, updateFilters, 
           ]} />
 
           <section className="executive-chart-row two-col">
+            <RankingList title="School research output" subtitle="Total output ranking" rows={chartRows} />
+            <RadarChart title="School Research Profile" subtitle="Category comparison" axes={[
+              { key: 'journals', label: 'Journals' },
+              { key: 'books', label: 'Books' },
+              { key: 'patents', label: 'Patents' },
+              { key: 'projects', label: 'Projects' },
+              { key: 'guidance', label: 'Guidance' },
+            ]} rows={rows.slice(0, 3).map((row) => ({
+              label: row.school,
+              journals: row.journal_papers,
+              books: row.books,
+              patents: row.patents,
+              projects: row.research_projects,
+              guidance: row.students_guided,
+            }))} />
             <CategoryComparison rows={rows} />
             <MiniBarChart title="Publication participation by school" subtitle="Participation" rows={rows.map((row) => ({ label: row.school, value: row.publication_participation }))} formatter={percent} />
             <MiniBarChart title="Funding by school" subtitle="Funding" rows={rows.map((row) => ({ label: row.school, value: row.total_funding }))} formatter={money} />

@@ -2,6 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import FilterBar from '../components/research-analytics/FilterBar'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
 import PageHeader from '../components/research-analytics/PageHeader'
+import AreaTrendChart from '../components/research-analytics/charts/AreaTrendChart'
+import DonutChart from '../components/research-analytics/charts/DonutChart'
+import HorizontalBarChart from '../components/research-analytics/charts/HorizontalBarChart'
+import ScatterChart from '../components/research-analytics/charts/ScatterChart'
+import StatRing from '../components/research-analytics/charts/StatRing'
+import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
 
@@ -40,28 +46,13 @@ function average(rows, key) {
 }
 
 function MiniBarChart({ title, subtitle, rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber }) {
-  const max = Math.max(...rows.map((row) => Number(row[valueKey] || 0)), 1)
-
-  return (
-    <article className="chart-card teaching-research-chart-card">
-      <div className="card-title">
-        <span>{subtitle}</span>
-        <h2>{title}</h2>
-      </div>
-      <div className="books-bars">
-        {rows.length ? rows.slice(0, 10).map((row) => {
-          const value = Number(row[valueKey] || 0)
-          return (
-            <div className="books-bar-row" key={`${title}-${row[labelKey]}`}>
-              <span>{row[labelKey]}</span>
-              <div><i style={{ width: `${(value / max) * 100}%` }} /></div>
-              <strong>{formatter(value)}</strong>
-            </div>
-          )
-        }) : <div className="mini-empty">No teaching-research balance data available</div>}
-      </div>
-    </article>
-  )
+  const chartRows = rows.map((row) => ({ ...row, label: row[labelKey], value: Number(row[valueKey] || 0), x: Number(row.teaching ?? row[valueKey] ?? 0), y: Number(row.research ?? row[valueKey] ?? 0) }))
+  const context = `${title} ${subtitle}`.toLowerCase()
+  if (context.includes('trend') || context.includes('year')) return <AreaTrendChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('distribution') || context.includes('quadrant')) return <DonutChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('balance')) return <ScatterChart title={title} subtitle={subtitle} rows={chartRows} xLabel="Teaching" yLabel="Research" xFormatter={percent} yFormatter={percent} />
+  if (context.includes('score') || context.includes('component')) return <HorizontalBarChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  return <TileGrid title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
 }
 
 function QuadrantChart({ rows }) {
@@ -288,6 +279,12 @@ export default function TeachingResearchAnalyticsPage({ filters, updateFilters, 
             { label: 'High teaching and low research', value: teachingFocused.length },
             { label: 'High research and lower feedback', value: highResearchLowFeedback.length },
           ]} />
+
+          <div className="stat-rings-row">
+            <StatRing value={rows.length ? (balanced.length / rows.length) * 100 : 0} label="Balanced Leaders" color="#22c55e" />
+            <StatRing value={rows.length ? (teachingFocused.length / rows.length) * 100 : 0} label="Teaching Focused" color="#6366f1" />
+            <StatRing value={rows.length ? (researchFocused.length / rows.length) * 100 : 0} label="Research Focused" color="#f59e0b" />
+          </div>
 
           <nav className="page-tabs" aria-label="Teaching research tabs">
             {tabs.map((tab) => <button className={activeTab === tab ? 'active' : ''} type="button" key={tab} onClick={() => setActiveTab(tab)}>{tab}</button>)}

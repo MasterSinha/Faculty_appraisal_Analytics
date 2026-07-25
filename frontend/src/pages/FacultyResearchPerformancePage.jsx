@@ -2,10 +2,19 @@ import { useEffect, useMemo, useState } from 'react'
 import FilterBar from '../components/research-analytics/FilterBar'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
 import PageHeader from '../components/research-analytics/PageHeader'
+import AreaTrendChart from '../components/research-analytics/charts/AreaTrendChart'
+import BubbleCloudChart from '../components/research-analytics/charts/BubbleCloudChart'
+import DonutChart from '../components/research-analytics/charts/DonutChart'
+import HorizontalBarChart from '../components/research-analytics/charts/HorizontalBarChart'
+import RadarChart from '../components/research-analytics/charts/RadarChart'
+import RankingList from '../components/research-analytics/charts/RankingList'
+import SparklineRow from '../components/research-analytics/charts/SparklineRow'
+import StatRing from '../components/research-analytics/charts/StatRing'
+import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
 
-const drawerTabs = ['Overview', 'Publications', 'Books', 'Patents and IPR', 'Projects and Funding', 'Research Guidance', 'Conferences and Awards', 'Teaching Balance', 'Reviewer Scores', 'Documents']
+const drawerTabs = ['Overview', 'Publications', 'Books', 'Patents and IPR', 'Projects and Funding', 'Research Guidance', 'Conferences and Awards', 'Teaching Balance', 'Documents']
 
 function formatNumber(value) {
   return new Intl.NumberFormat('en-IN').format(value || 0)
@@ -58,28 +67,13 @@ function segmentFaculty(faculty, selectedYear) {
 }
 
 function MiniBarChart({ title, subtitle, rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber }) {
-  const max = Math.max(...rows.map((row) => Number(row[valueKey] || 0)), 1)
-
-  return (
-    <article className="chart-card faculty-performance-chart-card">
-      <div className="card-title">
-        <span>{subtitle}</span>
-        <h2>{title}</h2>
-      </div>
-      <div className="books-bars">
-        {rows.length ? rows.slice(0, 10).map((row) => {
-          const value = Number(row[valueKey] || 0)
-          return (
-            <div className="books-bar-row" key={`${title}-${row[labelKey]}`}>
-              <span>{row[labelKey]}</span>
-              <div><i style={{ width: `${(value / max) * 100}%` }} /></div>
-              <strong>{formatter(value)}</strong>
-            </div>
-          )
-        }) : <div className="mini-empty">No faculty performance data available</div>}
-      </div>
-    </article>
-  )
+  const chartRows = rows.map((row) => ({ ...row, label: row[labelKey], value: Number(row[valueKey] || 0) }))
+  const context = `${title} ${subtitle}`.toLowerCase()
+  if (context.includes('trend')) return <AreaTrendChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('distribution') || context.includes('category')) return <DonutChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('score comparison') || context.includes('self versus')) return <TileGrid title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  if (context.includes('top faculty')) return <HorizontalBarChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
+  return <BubbleCloudChart title={title} subtitle={subtitle} rows={chartRows} formatter={formatter} />
 }
 
 function ScatterChart({ rows }) {
@@ -133,7 +127,7 @@ function SegmentPanel({ selectedSegment, onChange }) {
 
 function FacultyTable({ facultyRows, onOpen }) {
   const [search, setSearch] = useState('')
-  const [sortBy, setSortBy] = useState('validated_score')
+  const [sortBy, setSortBy] = useState('output')
   const [expanded, setExpanded] = useState('')
 
   const filtered = useMemo(() => {
@@ -153,7 +147,6 @@ function FacultyTable({ facultyRows, onOpen }) {
         <div className="books-table-controls">
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search faculty" />
           <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
-            <option value="validated_score">Sort by validated score</option>
             <option value="output">Sort by output</option>
             <option value="diversity_score">Sort by diversity</option>
             <option value="funding">Sort by funding</option>
@@ -162,7 +155,7 @@ function FacultyTable({ facultyRows, onOpen }) {
       </div>
       <div className="faculty-performance-table">
         <div className="faculty-performance-table-head">
-          {['Faculty name', 'Employee ID', 'Department', 'School', 'Designation', 'Journal papers', 'Books', 'Patents', 'Projects', 'Funding', 'Guidance', 'Diversity score', 'Validated score'].map((column) => <span key={column}>{column}</span>)}
+          {['Faculty name', 'Employee ID', 'Department', 'School', 'Designation', 'Journal papers', 'Books', 'Patents', 'Projects', 'Funding', 'Guidance', 'Diversity score'].map((column) => <span key={column}>{column}</span>)}
         </div>
         {filtered.map((faculty) => (
           <div key={faculty.email || faculty.employee_id}>
@@ -179,14 +172,12 @@ function FacultyTable({ facultyRows, onOpen }) {
               <span>{money(faculty.funding)}</span>
               <span>{faculty.guidance}</span>
               <span>{faculty.diversity_score}</span>
-              <span>{faculty.validated_score}</span>
             </button>
             {expanded === faculty.email && (
               <div className="faculty-expanded-row">
                 <span>Segment: <strong>{faculty.segment}</strong></span>
                 <span>Conferences: <strong>{faculty.conferences}</strong></span>
                 <span>Awards: <strong>{faculty.awards}</strong></span>
-                <span>Self score: <strong>{faculty.self_score}</strong></span>
                 <button type="button" onClick={() => onOpen(faculty)}>Open detail drawer</button>
               </div>
             )}
@@ -209,6 +200,7 @@ function FacultyDrawer({ faculty, onClose }) {
     { label: 'Guidance', value: faculty.guidance },
     { label: 'Conferences/Awards', value: faculty.conferences + faculty.awards },
   ]
+  const trendValues = faculty.output_trend || faculty.year_trend || faculty.trend || []
 
   return (
     <aside className="faculty-drawer-backdrop" role="dialog" aria-modal="true" aria-label="Faculty detail drawer">
@@ -229,11 +221,12 @@ function FacultyDrawer({ faculty, onClose }) {
               <MiniBarChart title="Research category distribution" subtitle="Faculty detail" rows={categoryRows} />
               <div className="quality-grid">
                 <span>Diversity score <strong>{faculty.diversity_score}</strong></span>
-                <span>Self-reported score <strong>{faculty.self_score}</strong></span>
-                <span>Validated score <strong>{faculty.validated_score}</strong></span>
                 <span>Funding received <strong>{money(faculty.funding)}</strong></span>
                 <span>Consistency across years <strong>{faculty.consistency_years || 1}</strong></span>
                 <span>Missing evidence alerts <strong>{faculty.missing_evidence_alerts || 0}</strong></span>
+                {trendValues.length > 1 && (
+                  <span>Output trend <strong><SparklineRow values={trendValues.map((value) => Number(value || 0))} label="Faculty output trend" /></strong></span>
+                )}
               </div>
             </>
           ) : (
@@ -339,10 +332,30 @@ export default function FacultyResearchPerformancePage({ filters, updateFilters,
   const inactive = facultyRows.filter((faculty) => faculty.output === 0 || faculty.segment === 'Inactive Researchers')
   const avgDiversity = facultyRows.length ? facultyRows.reduce((sum, faculty) => sum + faculty.diversity_score, 0) / facultyRows.length : 0
   const avgValidated = facultyRows.length ? facultyRows.reduce((sum, faculty) => sum + faculty.validated_score, 0) / facultyRows.length : 0
-  const topOutputRows = [...facultyRows].sort((a, b) => b.output - a.output).map((faculty) => ({ label: faculty.faculty_name, value: faculty.output }))
+  const avgSelf = facultyRows.length ? facultyRows.reduce((sum, faculty) => sum + Number(faculty.self_score || 0), 0) / facultyRows.length : 0
+  const topOutputRows = [...facultyRows].sort((a, b) => b.output - a.output).map((faculty) => ({ label: faculty.faculty_name, value: faculty.output, validatedScore: faculty.validated_score }))
   const topScoreRows = [...facultyRows].sort((a, b) => b.validated_score - a.validated_score).map((faculty) => ({ label: faculty.faculty_name, value: faculty.validated_score }))
   const diversityRows = Object.entries(facultyRows.reduce((acc, faculty) => ({ ...acc, [faculty.diversity_score]: (acc[faculty.diversity_score] || 0) + 1 }), {})).map(([label, value]) => ({ label: `${label} categories`, value }))
   const scatterRows = facultyRows.map((faculty) => ({ label: faculty.faculty_name, email: faculty.email, output: faculty.output, diversity: faculty.diversity_score }))
+  const diversityPct = facultyRows.length ? (facultyRows.filter((faculty) => faculty.diversity_score >= 3).length / facultyRows.length) * 100 : 0
+  const participationPct = facultyRows.length ? (activeRows.length / facultyRows.length) * 100 : 0
+  const radarAxes = [
+    { key: 'journals', label: 'Journals' },
+    { key: 'books', label: 'Books' },
+    { key: 'patents', label: 'Patents' },
+    { key: 'projects', label: 'Projects' },
+    { key: 'guidance', label: 'Guidance' },
+    { key: 'conferences', label: 'Conferences' },
+  ]
+  const radarRows = [...facultyRows].sort((a, b) => b.output - a.output).slice(0, 3).map((faculty) => ({
+    label: faculty.faculty_name,
+    journals: faculty.journal_papers,
+    books: faculty.books,
+    patents: faculty.patents,
+    projects: faculty.projects,
+    guidance: faculty.guidance,
+    conferences: faculty.conferences,
+  }))
 
   return (
     <main className="research-page faculty-performance-page">
@@ -377,9 +390,16 @@ export default function FacultyResearchPerformancePage({ filters, updateFilters,
             { label: 'Declining Contributors', value: facultyRows.filter((faculty) => faculty.segment === 'Declining Contributors').length },
           ]} />
 
+          <div className="stat-rings-row">
+            <StatRing value={participationPct} label="Research Participation" color="#6366f1" />
+            <StatRing value={diversityPct} label="Diversity Score 3+" color="#22c55e" />
+            <StatRing value={avgSelf ? (avgValidated / avgSelf) * 100 : 0} label="Validated Score Ratio" color="#f59e0b" />
+          </div>
+
           <section className="executive-chart-row two-col">
-            <MiniBarChart title="Top faculty by output" subtitle="Output" rows={topOutputRows} />
+            <RankingList title="Top Faculty by Total Output" subtitle="Output ranking" rows={topOutputRows} badgeKey="validatedScore" badgeFormatter={(value) => `VC ${formatNumber(value)}`} />
             <MiniBarChart title="Top faculty by validated score" subtitle="Validated score" rows={topScoreRows} />
+            <RadarChart title="Top Faculty Research Profile" subtitle="Top 3 by output" axes={radarAxes} rows={radarRows} />
             <MiniBarChart title="Research diversity distribution" subtitle="Diversity" rows={diversityRows} />
             <MiniBarChart title="Faculty performance trend" subtitle="Selected period" rows={topOutputRows.slice(0, 6)} />
             <ScatterChart rows={scatterRows} />
