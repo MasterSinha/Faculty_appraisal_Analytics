@@ -269,12 +269,18 @@ class ResearchDataQualityAnalyticsRepository:
                 add_alert("Warning", "Missing information", "Patents", em, title, yr, "Patent record is missing patent status.", "Update patent status (Filed/Granted/Pending).", tbl, rid)
 
             # Check 6: Missing project amount
-            if cat in ("research_projects", "external_projects") and (r.get("amount") is None or r.get("amount") == 0.0):
+            raw_amt = r.get("amount")
+            try:
+                amt_val = float(raw_amt) if raw_amt is not None else None
+            except (ValueError, TypeError):
+                amt_val = None
+
+            if cat in ("research_projects", "external_projects") and (amt_val is None or amt_val == 0.0):
                 add_alert("Warning", "Verification required", "Projects", em, title, yr, "Research project is recorded with zero or missing sanctioned amount.", "Verify sanctioned project funding amount.", tbl, rid)
 
             # Check 16: Negative funding
-            if r.get("amount", 0.0) < 0:
-                add_alert("Critical", "Outlier", "Projects", em, title, yr, f"Project funding amount is negative ({r.get('amount')}).", "Correct funding amount.", tbl, rid)
+            if amt_val is not None and amt_val < 0:
+                add_alert("Critical", "Outlier", "Projects", em, title, yr, f"Project funding amount is negative ({amt_val}).", "Correct funding amount.", tbl, rid)
 
             # Check 17 & 18: Future patent/sanction date
             num_yr = parse_numeric_year(r.get("date") or yr)
@@ -302,10 +308,15 @@ class ResearchDataQualityAnalyticsRepository:
                 if cat in ("research_projects", "external_projects"):
                     if t_lower in proj_title_amount_map:
                         prev_rec = proj_title_amount_map[t_lower]
-                        if prev_rec["amount"] != r.get("amount"):
-                            add_alert("Critical", "Possible duplicate", "Projects", em, title, yr, f"Project title matches existing project with conflicting funding amount ({r.get('amount')} vs {prev_rec['amount']}).", "Reconcile duplicate project funding.", tbl, rid)
+                        try:
+                            prev_amt = float(prev_rec["amount"]) if prev_rec.get("amount") is not None else None
+                        except (ValueError, TypeError):
+                            prev_amt = None
+                        if prev_amt != amt_val:
+                            add_alert("Critical", "Possible duplicate", "Projects", em, title, yr, f"Project title matches existing project with conflicting funding amount ({amt_val} vs {prev_amt}).", "Reconcile duplicate project funding.", tbl, rid)
                     else:
                         proj_title_amount_map[t_lower] = r
+
 
         # Check 11: Duplicate title for same faculty and academic year
         for (t_lower, yr, em), rec_group in title_year_fac_map.items():
