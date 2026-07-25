@@ -121,7 +121,7 @@ export function useResearchAnalytics() {
 
   const refresh = useCallback(async () => {
     await Promise.resolve()
-    setLoading(true)
+    setLoading((current) => current)
     setError('')
     setDemoMode(false)
 

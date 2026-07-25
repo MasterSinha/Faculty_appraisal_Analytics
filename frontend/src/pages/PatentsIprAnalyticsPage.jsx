@@ -241,7 +241,7 @@ export default function PatentsIprAnalyticsPage({ sharedData, filters, updateFil
   useEffect(() => {
     let ignore = false
     async function loadPatents() {
-      setLoading(true)
+      setLoading((current) => current)
       setError('')
       try {
         const response = await researchAnalyticsApi.patents(filters)

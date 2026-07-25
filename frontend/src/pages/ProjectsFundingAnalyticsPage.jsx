@@ -345,7 +345,7 @@ export default function ProjectsFundingAnalyticsPage({ sharedData, filters, upda
   useEffect(() => {
     let ignore = false
     async function loadProjects() {
-      setLoading(true)
+      setLoading((current) => current)
       setError('')
       try {
         const response = await researchAnalyticsApi.projectRecords(filters)

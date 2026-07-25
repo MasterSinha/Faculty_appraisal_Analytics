@@ -185,7 +185,7 @@ export default function ConferencesAwardsAnalyticsPage({ sharedData, filters, up
   useEffect(() => {
     let ignore = false
     async function loadData() {
-      setLoading(true)
+      setLoading((current) => current)
       setError('')
       try {
         const data = await researchAnalyticsApi.conferencesAwards(filters)

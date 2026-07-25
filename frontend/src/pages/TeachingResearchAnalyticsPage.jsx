@@ -187,7 +187,7 @@ export default function TeachingResearchAnalyticsPage({ filters, updateFilters, 
   useEffect(() => {
     let ignore = false
     async function loadBalance() {
-      setLoading(true)
+      setLoading((current) => current)
       setError('')
       try {
         const data = await researchAnalyticsApi.teachingResearchBalance(filters)

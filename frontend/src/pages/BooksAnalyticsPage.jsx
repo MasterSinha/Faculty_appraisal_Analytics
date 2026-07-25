@@ -154,7 +154,7 @@ export default function BooksAnalyticsPage({ sharedData, filters, updateFilters,
   useEffect(() => {
     let ignore = false
     async function loadBooks() {
-      setLoading(true)
+      setLoading((current) => current)
       setError('')
       try {
         const response = await researchAnalyticsApi.books(filters)

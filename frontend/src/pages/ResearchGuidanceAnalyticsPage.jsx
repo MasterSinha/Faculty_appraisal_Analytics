@@ -141,7 +141,7 @@ export default function ResearchGuidanceAnalyticsPage({ sharedData, filters, upd
   useEffect(() => {
     let ignore = false
     async function loadGuidance() {
-      setLoading(true)
+      setLoading((current) => current)
       setError('')
       try {
         const response = await researchAnalyticsApi.guidance(filters)

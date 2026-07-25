@@ -272,7 +272,7 @@ export default function DepartmentResearchPerformancePage({ filters, updateFilte
   useEffect(() => {
     let ignore = false
     async function loadDepartments() {
-      setLoading(true)
+      setLoading((current) => current)
       setError('')
       try {
         const data = await researchAnalyticsApi.departmentPerformance(filters)

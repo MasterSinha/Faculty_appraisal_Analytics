@@ -158,7 +158,7 @@ export default function ResearchDataQualityPage({ filters, updateFilters, refres
   useEffect(() => {
     let ignore = false
     async function loadDataQuality() {
-      setLoading(true)
+      setLoading((current) => current)
       setError('')
       try {
         const data = await researchAnalyticsApi.dataQuality(filters)

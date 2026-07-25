@@ -155,7 +155,7 @@ export default function InnovationPipelinePage({ sharedData, filters, updateFilt
   useEffect(() => {
     let ignore = false
     async function loadPipeline() {
-      setLoading(true)
+      setLoading((current) => current)
       setError('')
       try {
         const data = await researchAnalyticsApi.innovationPipeline(filters)

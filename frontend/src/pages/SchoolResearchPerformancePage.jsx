@@ -233,7 +233,7 @@ export default function SchoolResearchPerformancePage({ filters, updateFilters, 
   useEffect(() => {
     let ignore = false
     async function loadSchools() {
-      setLoading(true)
+      setLoading((current) => current)
       setError('')
       try {
         const data = await researchAnalyticsApi.schoolPerformance(filters)

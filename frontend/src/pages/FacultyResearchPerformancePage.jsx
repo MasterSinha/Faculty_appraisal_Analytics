@@ -281,7 +281,7 @@ export default function FacultyResearchPerformancePage({ filters, updateFilters,
   useEffect(() => {
     let ignore = false
     async function loadFacultyPerformance() {
-      setLoading(true)
+      setLoading((current) => current)
       setError('')
       try {
         const data = await researchAnalyticsApi.facultyPerformance(filters)

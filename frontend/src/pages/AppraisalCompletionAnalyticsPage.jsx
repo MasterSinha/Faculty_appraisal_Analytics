@@ -187,7 +187,7 @@ export default function AppraisalCompletionAnalyticsPage({ filters, updateFilter
   useEffect(() => {
     let ignore = false
     async function loadCompletion() {
-      setLoading(true)
+      setLoading((current) => current)
       setError('')
       try {
         const data = await researchAnalyticsApi.appraisalCompletion(filters)

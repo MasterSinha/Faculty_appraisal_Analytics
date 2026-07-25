@@ -183,7 +183,7 @@ export default function JournalPublicationsAnalyticsPage({ sharedData, filters, 
   useEffect(() => {
     let ignore = false
     async function loadPublications() {
-      setLoading(true)
+      setLoading((current) => current)
       setError('')
       try {
         const response = await researchAnalyticsApi.publications(filters)
