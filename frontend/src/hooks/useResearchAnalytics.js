@@ -120,8 +120,6 @@ export function useResearchAnalytics() {
   }, [])
 
   const refresh = useCallback(async () => {
-    await Promise.resolve()
-    setLoading((current) => current)
     setError('')
     setDemoMode(false)
 
@@ -194,11 +192,7 @@ export function useResearchAnalytics() {
   }, [filters])
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      refresh()
-    }, 0)
-
-    return () => window.clearTimeout(timeoutId)
+    refresh()
   }, [refresh])
 
   const exportCsv = useCallback(() => {
