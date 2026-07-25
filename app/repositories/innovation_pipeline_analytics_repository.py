@@ -56,194 +56,200 @@ class InnovationPipelineAnalyticsRepository:
         }
 
     def _get_active_faculty_profiles(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
-        tables = self._get_tables()
-        faculty_table = tables["faculty"]
-        if faculty_table is None:
-            return []
+        try:
+            tables = self._get_tables()
+            faculty_table = tables["faculty"]
+            if faculty_table is None:
+                return []
 
-        f_cols = SchemaReflector.column_names(faculty_table)
-        f_email = SchemaReflector.first_existing(f_cols, EMAIL_COLUMNS) or "email"
-        f_name = SchemaReflector.first_existing(f_cols, NAME_COLUMNS) or "full_name"
-        f_emp = SchemaReflector.first_existing(f_cols, EMPLOYEE_COLUMNS) or "employee_id"
-        f_dept = SchemaReflector.first_existing(f_cols, DEPARTMENT_COLUMNS) or "department"
-        f_school = SchemaReflector.first_existing(f_cols, SCHOOL_COLUMNS) or "school"
-        f_desig = SchemaReflector.first_existing(f_cols, ["designation", "role"]) or "designation"
+            f_cols = SchemaReflector.column_names(faculty_table)
+            if not f_cols:
+                return []
+            f_email = SchemaReflector.first_existing(f_cols, EMAIL_COLUMNS) or "email"
+            f_name = SchemaReflector.first_existing(f_cols, NAME_COLUMNS) or "full_name"
+            f_emp = SchemaReflector.first_existing(f_cols, EMPLOYEE_COLUMNS) or "employee_id"
+            f_dept = SchemaReflector.first_existing(f_cols, DEPARTMENT_COLUMNS) or "department"
+            f_school = SchemaReflector.first_existing(f_cols, SCHOOL_COLUMNS) or "school"
+            f_desig = SchemaReflector.first_existing(f_cols, ["designation", "role"]) or "designation"
 
-        select_fields = [
-            faculty_table.c[f_email].label("email"),
-            faculty_table.c[f_name].label("faculty_name") if f_name in faculty_table.c else literal("").label("faculty_name"),
-            faculty_table.c[f_emp].label("employee_id") if f_emp in faculty_table.c else literal("").label("employee_id"),
-            faculty_table.c[f_dept].label("department") if f_dept in faculty_table.c else literal("").label("department"),
-            faculty_table.c[f_school].label("school") if f_school in faculty_table.c else literal("").label("school"),
-            faculty_table.c[f_desig].label("designation") if f_desig in faculty_table.c else literal("").label("designation"),
-        ]
+            select_fields = [
+                faculty_table.c[f_email].label("email") if f_email and f_email in faculty_table.c else literal("").label("email"),
+                faculty_table.c[f_name].label("faculty_name") if f_name and f_name in faculty_table.c else literal("").label("faculty_name"),
+                faculty_table.c[f_emp].label("employee_id") if f_emp and f_emp in faculty_table.c else literal("").label("employee_id"),
+                faculty_table.c[f_dept].label("department") if f_dept and f_dept in faculty_table.c else literal("").label("department"),
+                faculty_table.c[f_school].label("school") if f_school and f_school in faculty_table.c else literal("").label("school"),
+                faculty_table.c[f_desig].label("designation") if f_desig and f_desig in faculty_table.c else literal("").label("designation"),
+            ]
 
-        if "is_active" in faculty_table.c:
-            select_fields.append(faculty_table.c.is_active.label("is_active"))
-        else:
-            select_fields.append(literal(1).label("is_active"))
+            if "is_active" in faculty_table.c:
+                select_fields.append(faculty_table.c.is_active.label("is_active"))
+            else:
+                select_fields.append(literal(1).label("is_active"))
 
-        stmt = select(*select_fields)
-        clauses = []
-        if "is_active" in faculty_table.c:
-            clauses.append(faculty_table.c.is_active == True)
+            stmt = select(*select_fields)
+            clauses = []
+            if "is_active" in faculty_table.c:
+                clauses.append(faculty_table.c.is_active == True)
 
-        if filters.get("school") and f_school in faculty_table.c:
-            clauses.append(faculty_table.c[f_school] == filters["school"])
-        if filters.get("department") and f_dept in faculty_table.c:
-            clauses.append(faculty_table.c[f_dept] == filters["department"])
-        if filters.get("designation") and f_desig in faculty_table.c:
-            clauses.append(faculty_table.c[f_desig] == filters["designation"])
-        if filters.get("faculty"):
-            target_fac = str(filters["faculty"]).lower().strip()
-            clauses.append(
-                or_(
-                    func.lower(func.trim(faculty_table.c[f_email])) == target_fac,
-                    func.lower(faculty_table.c[f_name]).like(f"%{target_fac}%"),
+            if filters.get("school") and f_school in faculty_table.c:
+                clauses.append(faculty_table.c[f_school] == filters["school"])
+            if filters.get("department") and f_dept in faculty_table.c:
+                clauses.append(faculty_table.c[f_dept] == filters["department"])
+            if filters.get("designation") and f_desig in faculty_table.c:
+                clauses.append(faculty_table.c[f_desig] == filters["designation"])
+            if filters.get("faculty") and f_email in faculty_table.c:
+                target_fac = str(filters["faculty"]).lower().strip()
+                clauses.append(
+                    or_(
+                        func.lower(func.trim(faculty_table.c[f_email])) == target_fac,
+                        func.lower(faculty_table.c[f_name]).like(f"%{target_fac}%") if f_name in faculty_table.c else literal(False),
+                    )
                 )
-            )
 
-        if clauses:
-            stmt = stmt.where(and_(*clauses))
+            if clauses:
+                stmt = stmt.where(and_(*clauses))
 
-        res = self.db.execute(stmt).fetchall()
-        profiles = []
-        for r in res:
-            p = dict(r._mapping)
-            p["email"] = str(p.get("email") or "").lower().strip()
-            p["is_active"] = bool(p.get("is_active"))
-            profiles.append(p)
-        return profiles
+            res = self.db.execute(stmt).fetchall()
+            profiles = []
+            for r in res:
+                p = dict(r._mapping)
+                p["email"] = str(p.get("email") or "").lower().strip()
+                p["is_active"] = bool(p.get("is_active"))
+                profiles.append(p)
+            return profiles
+        except Exception:
+            return []
 
     def _get_records_from_table(self, table: Optional[Table], category: str, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
-        tables = self._get_tables()
-        faculty_table = tables["faculty"]
-        if table is None or faculty_table is None:
+        if table is None:
             return []
+        try:
+            tables = self._get_tables()
+            faculty_table = tables["faculty"]
+            if faculty_table is None:
+                return []
 
-        cols = SchemaReflector.column_names(table)
-        f_cols = SchemaReflector.column_names(faculty_table)
+            cols = SchemaReflector.column_names(table)
+            f_cols = SchemaReflector.column_names(faculty_table)
+            if not cols or not f_cols:
+                return []
 
-        id_col = SchemaReflector.first_existing(cols, ["id", f"{category}_id"]) or "id"
-        email_col = SchemaReflector.first_existing(cols, ["faculty_email", "email", "official_email"]) or "faculty_email"
-        title_col = SchemaReflector.first_existing(cols, TITLE_COLUMNS) or "title"
-        status_col = SchemaReflector.first_existing(cols, ["patent_status", "ipr_status", "project_status", "status"]) or "status"
+            id_col = SchemaReflector.first_existing(cols, ["id", f"{category}_id"]) or (cols[0] if cols else None)
+            email_col = SchemaReflector.first_existing(cols, ["faculty_email", "email", "official_email"]) or (cols[0] if cols else None)
+            title_col = SchemaReflector.first_existing(cols, TITLE_COLUMNS) or "title"
+            status_col = SchemaReflector.first_existing(cols, ["patent_status", "ipr_status", "project_status", "status"]) or "status"
 
-        year_col = SchemaReflector.first_existing(cols, YEAR_COLUMNS) or "academic_year"
-        amount_col = SchemaReflector.first_existing(cols, AMOUNT_COLUMNS) or "amount"
-        score_col = SchemaReflector.first_existing(cols, ["score", "self_score"]) or "score"
+            year_col = SchemaReflector.first_existing(cols, YEAR_COLUMNS) or "academic_year"
+            amount_col = SchemaReflector.first_existing(cols, AMOUNT_COLUMNS) or "amount"
+            score_col = SchemaReflector.first_existing(cols, ["score", "self_score"]) or "score"
 
-        f_email = SchemaReflector.first_existing(f_cols, EMAIL_COLUMNS) or "email"
-        f_name = SchemaReflector.first_existing(f_cols, NAME_COLUMNS) or "full_name"
-        f_dept = SchemaReflector.first_existing(f_cols, DEPARTMENT_COLUMNS) or "department"
-        f_school = SchemaReflector.first_existing(f_cols, SCHOOL_COLUMNS) or "school"
-        f_desig = SchemaReflector.first_existing(f_cols, ["designation", "role"]) or "designation"
+            f_email = SchemaReflector.first_existing(f_cols, EMAIL_COLUMNS) or (f_cols[0] if f_cols else None)
+            f_name = SchemaReflector.first_existing(f_cols, NAME_COLUMNS) or "full_name"
+            f_dept = SchemaReflector.first_existing(f_cols, DEPARTMENT_COLUMNS) or "department"
+            f_school = SchemaReflector.first_existing(f_cols, SCHOOL_COLUMNS) or "school"
+            f_desig = SchemaReflector.first_existing(f_cols, ["designation", "role"]) or "designation"
 
-        select_fields = [
-            table.c[id_col].label("id") if id_col in table.c else table.c[cols[0]].label("id"),
-            table.c[email_col].label("t_email") if email_col in table.c else literal("").label("t_email"),
-            table.c[title_col].label("title") if title_col in table.c else literal("").label("title"),
-            table.c[status_col].label("status") if status_col in table.c else literal("").label("status"),
-            table.c[year_col].label("academic_year") if year_col in table.c else literal("").label("academic_year"),
-            table.c[amount_col].label("amount") if amount_col in table.c else literal(0.0).label("amount"),
-            table.c[score_col].label("score") if score_col in table.c else literal(0.0).label("score"),
-            faculty_table.c[f_email].label("f_email") if f_email in faculty_table.c else literal("").label("f_email"),
-            faculty_table.c[f_name].label("full_name") if f_name in faculty_table.c else literal("").label("full_name"),
-            faculty_table.c[f_dept].label("department") if f_dept in faculty_table.c else literal("").label("department"),
-            faculty_table.c[f_school].label("school") if f_school in faculty_table.c else literal("").label("school"),
-            faculty_table.c[f_desig].label("designation") if f_desig in faculty_table.c else literal("").label("designation"),
-        ]
-
-        # Specific columns
-        if category == "patent":
-            p_date = SchemaReflector.first_existing(cols, ["patent_date", "date", "filing_date"]) or "patent_date"
-            p_file = SchemaReflector.first_existing(cols, ["file_no", "application_no", "file_number"]) or "file_number"
-            select_fields.append(table.c[p_date].label("patent_date") if p_date in table.c else literal_column("NULL").label("patent_date"))
-            select_fields.append(table.c[p_file].label("file_number") if p_file in table.c else literal("").label("file_number"))
-        elif category == "ipr":
-            i_date = SchemaReflector.first_existing(cols, ["ipr_date", "date", "registration_date"]) or "ipr_date"
-            i_file = SchemaReflector.first_existing(cols, ["file_no", "application_no", "file_number"]) or "file_number"
-            select_fields.append(table.c[i_date].label("ipr_date") if i_date in table.c else literal_column("NULL").label("ipr_date"))
-            select_fields.append(table.c[i_file].label("file_number") if i_file in table.c else literal("").label("file_number"))
-        elif category in ("internal_project", "external_project"):
-            s_date = SchemaReflector.first_existing(cols, ["sanction_date", "date", "start_date"]) or "sanction_date"
-            agency_col = SchemaReflector.first_existing(cols, AGENCY_COLUMNS) or "agency"
-            role_col = SchemaReflector.first_existing(cols, ["role", "investigator_role"]) or "role"
-            select_fields.append(table.c[s_date].label("sanction_date") if s_date in table.c else literal_column("NULL").label("sanction_date"))
-            select_fields.append(table.c[agency_col].label("agency") if agency_col in table.c else literal("").label("agency"))
-            select_fields.append(table.c[role_col].label("role") if role_col in table.c else literal("").label("role"))
-        elif category == "product":
-            d_date = SchemaReflector.first_existing(cols, ["development_date", "date", "created_at"]) or "development_date"
-            select_fields.append(table.c[d_date].label("development_date") if d_date in table.c else literal_column("NULL").label("development_date"))
-        elif category == "proposal":
-            agency_col = SchemaReflector.first_existing(cols, AGENCY_COLUMNS) or "agency"
-            dur_col = SchemaReflector.first_existing(cols, ["duration", "project_duration"]) or "duration"
-            select_fields.append(table.c[agency_col].label("agency") if agency_col in table.c else literal("").label("agency"))
-            select_fields.append(table.c[dur_col].label("duration") if dur_col in table.c else literal("").label("duration"))
-
-
-        stmt = select(*select_fields)
-        t_email_col = table.c[email_col] if email_col in table.c else table.c[cols[0]]
-        f_email_col = faculty_table.c[f_email] if f_email in faculty_table.c else faculty_table.c[f_cols[0]]
-
-        join_clause = func.lower(func.trim(t_email_col)) == func.lower(func.trim(f_email_col))
-        stmt = stmt.select_from(table.join(faculty_table, join_clause))
-
-        clauses = []
-        if "is_active" in faculty_table.c:
-            clauses.append(faculty_table.c.is_active == True)
-
-        # VALID CONDITION: title IS NOT NULL AND TRIM(title) <> ''
-        t_title_col = table.c[title_col] if title_col in table.c else table.c[cols[0]]
-        clauses.append(t_title_col.isnot(None))
-        clauses.append(func.trim(t_title_col) != "")
-
-        if filters.get("academic_year") and year_col in table.c:
-            clauses.append(func.cast(table.c[year_col], text("VARCHAR")) == str(filters["academic_year"]))
-
-        if filters.get("school") and f_school in faculty_table.c:
-            clauses.append(faculty_table.c[f_school] == filters["school"])
-
-        if filters.get("department") and f_dept in faculty_table.c:
-            clauses.append(faculty_table.c[f_dept] == filters["department"])
-
-        if filters.get("designation") and f_desig in faculty_table.c:
-            clauses.append(faculty_table.c[f_desig] == filters["designation"])
-
-        if filters.get("faculty"):
-            target_fac = str(filters["faculty"]).lower().strip()
-            clauses.append(
-                or_(
-                    func.lower(func.trim(f_email_col)) == target_fac,
-                    func.lower(faculty_table.c[f_name]).like(f"%{target_fac}%"),
-                )
-            )
-
-        if clauses:
-            stmt = stmt.where(and_(*clauses))
-
-        result = self.db.execute(stmt).fetchall()
-        rows = []
-        for r in result:
-            rd = dict(r._mapping)
-            em = str(rd.get("f_email") or rd.get("t_email") or "").lower().strip()
-            rd["faculty_email"] = em
-            rd["amount"] = float(rd.get("amount") or 0.0)
-            rd["score"] = float(rd.get("score") or 0.0)
+            select_fields = [
+                table.c[id_col].label("id") if id_col and id_col in table.c else literal(1).label("id"),
+                table.c[email_col].label("t_email") if email_col and email_col in table.c else literal("").label("t_email"),
+                table.c[title_col].label("title") if title_col and title_col in table.c else literal("").label("title"),
+                table.c[status_col].label("status") if status_col and status_col in table.c else literal("").label("status"),
+                table.c[year_col].label("academic_year") if year_col and year_col in table.c else literal("").label("academic_year"),
+                table.c[amount_col].label("amount") if amount_col and amount_col in table.c else literal(0.0).label("amount"),
+                table.c[score_col].label("score") if score_col and score_col in table.c else literal(0.0).label("score"),
+                faculty_table.c[f_email].label("f_email") if f_email and f_email in faculty_table.c else literal("").label("f_email"),
+                faculty_table.c[f_name].label("full_name") if f_name and f_name in faculty_table.c else literal("").label("full_name"),
+                faculty_table.c[f_dept].label("department") if f_dept and f_dept in faculty_table.c else literal("").label("department"),
+                faculty_table.c[f_school].label("school") if f_school and f_school in faculty_table.c else literal("").label("school"),
+                faculty_table.c[f_desig].label("designation") if f_desig and f_desig in faculty_table.c else literal("").label("designation"),
+            ]
 
             if category == "patent":
-                rd["patent_status"] = rd.get("status")
+                p_date = SchemaReflector.first_existing(cols, ["patent_date", "date", "filing_date"]) or "patent_date"
+                p_file = SchemaReflector.first_existing(cols, ["file_no", "application_no", "file_number"]) or "file_number"
+                select_fields.append(table.c[p_date].label("patent_date") if p_date in table.c else literal_column("NULL").label("patent_date"))
+                select_fields.append(table.c[p_file].label("file_number") if p_file in table.c else literal("").label("file_number"))
             elif category == "ipr":
-                rd["ipr_status"] = rd.get("status")
+                i_date = SchemaReflector.first_existing(cols, ["ipr_date", "date", "registration_date"]) or "ipr_date"
+                i_file = SchemaReflector.first_existing(cols, ["file_no", "application_no", "file_number"]) or "file_number"
+                select_fields.append(table.c[i_date].label("ipr_date") if i_date in table.c else literal_column("NULL").label("ipr_date"))
+                select_fields.append(table.c[i_file].label("file_number") if i_file in table.c else literal("").label("file_number"))
             elif category in ("internal_project", "external_project"):
-                rd["project_status"] = rd.get("status")
-                rd["sanctioned_amount"] = rd["amount"]
-                rd["external_project"] = (category == "external_project")
+                s_date = SchemaReflector.first_existing(cols, ["sanction_date", "date", "start_date"]) or "sanction_date"
+                agency_col = SchemaReflector.first_existing(cols, AGENCY_COLUMNS) or "agency"
+                role_col = SchemaReflector.first_existing(cols, ["role", "investigator_role"]) or "role"
+                select_fields.append(table.c[s_date].label("sanction_date") if s_date in table.c else literal_column("NULL").label("sanction_date"))
+                select_fields.append(table.c[agency_col].label("agency") if agency_col in table.c else literal("").label("agency"))
+                select_fields.append(table.c[role_col].label("role") if role_col in table.c else literal("").label("role"))
             elif category == "product":
-                rd["product_title"] = rd.get("title")
+                d_date = SchemaReflector.first_existing(cols, ["development_date", "date", "created_at"]) or "development_date"
+                select_fields.append(table.c[d_date].label("development_date") if d_date in table.c else literal_column("NULL").label("development_date"))
+            elif category == "proposal":
+                agency_col = SchemaReflector.first_existing(cols, AGENCY_COLUMNS) or "agency"
+                dur_col = SchemaReflector.first_existing(cols, ["duration", "project_duration"]) or "duration"
+                select_fields.append(table.c[agency_col].label("agency") if agency_col in table.c else literal("").label("agency"))
+                select_fields.append(table.c[dur_col].label("duration") if dur_col in table.c else literal("").label("duration"))
 
-            rows.append(rd)
-        return rows
+
+            stmt = select(*select_fields)
+            if email_col and email_col in table.c and f_email and f_email in faculty_table.c:
+                t_email_col = table.c[email_col]
+                f_email_col = faculty_table.c[f_email]
+                join_clause = func.lower(func.trim(t_email_col)) == func.lower(func.trim(f_email_col))
+                stmt = stmt.select_from(table.join(faculty_table, join_clause))
+            else:
+                stmt = stmt.select_from(table)
+
+            clauses = []
+            if "is_active" in faculty_table.c:
+                clauses.append(faculty_table.c.is_active == True)
+
+            if title_col and title_col in table.c:
+                t_title_col = table.c[title_col]
+                clauses.append(t_title_col.isnot(None))
+                clauses.append(func.trim(t_title_col) != "")
+
+            if filters.get("academic_year") and year_col in table.c:
+                clauses.append(func.cast(table.c[year_col], text("VARCHAR")) == str(filters["academic_year"]))
+
+            if filters.get("school") and f_school in faculty_table.c:
+                clauses.append(faculty_table.c[f_school] == filters["school"])
+
+            if filters.get("department") and f_dept in faculty_table.c:
+                clauses.append(faculty_table.c[f_dept] == filters["department"])
+
+            if filters.get("designation") and f_desig in faculty_table.c:
+                clauses.append(faculty_table.c[f_desig] == filters["designation"])
+
+            if clauses:
+                stmt = stmt.where(and_(*clauses))
+
+            result = self.db.execute(stmt).fetchall()
+            rows = []
+            for r in result:
+                rd = dict(r._mapping)
+                em = str(rd.get("f_email") or rd.get("t_email") or "").lower().strip()
+                rd["faculty_email"] = em
+                rd["amount"] = float(rd.get("amount") or 0.0)
+                rd["score"] = float(rd.get("score") or 0.0)
+
+                if category == "patent":
+                    rd["patent_status"] = rd.get("status")
+                elif category == "ipr":
+                    rd["ipr_status"] = rd.get("status")
+                elif category in ("internal_project", "external_project"):
+                    rd["project_status"] = rd.get("status")
+                    rd["sanctioned_amount"] = rd["amount"]
+                    rd["external_project"] = (category == "external_project")
+                elif category == "product":
+                    rd["product_title"] = rd.get("title")
+
+                rows.append(rd)
+            return rows
+
+        except Exception:
+            return []
+
 
     def get_analytics(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         tables = self._get_tables()
