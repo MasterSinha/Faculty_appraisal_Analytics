@@ -88,7 +88,7 @@ export default function ResearchAnalyticsDashboard() {
     const intervalId = window.setInterval(() => {
       refresh()
       setAutoRefreshTick((tick) => tick + 1)
-    }, 10000)
+    }, 60000)
 
     return () => window.clearInterval(intervalId)
   }, [refresh])

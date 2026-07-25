@@ -1,4 +1,4 @@
-export default function AnalyticsHeader({ demoMode, onExportCsv, onExportXlsx, onRefresh }) {
+export default function AnalyticsHeader({ onExportCsv, onExportXlsx, onRefresh }) {
   return (
     <header className="analytics-header">
       <div>
@@ -13,8 +13,8 @@ export default function AnalyticsHeader({ demoMode, onExportCsv, onExportXlsx, o
           <option>Cycle 2024-25</option>
         </select>
         <button type="button" onClick={onRefresh}>Refresh</button>
-        <button type="button" disabled={demoMode} title={demoMode ? 'Connect FastAPI to export live records' : 'Export CSV'} onClick={onExportCsv}>CSV</button>
-        <button type="button" className="primary-action" disabled={demoMode} title={demoMode ? 'Connect FastAPI to export live records' : 'Export Excel'} onClick={onExportXlsx}>Excel</button>
+        <button type="button" title="Export CSV" onClick={onExportCsv}>CSV</button>
+        <button type="button" className="primary-action" title="Export Excel" onClick={onExportXlsx}>Excel</button>
       </div>
     </header>
   )
