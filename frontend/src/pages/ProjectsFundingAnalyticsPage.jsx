@@ -336,7 +336,7 @@ function buildMockProposals(projects) {
   }))
 }
 
-export default function ProjectsFundingAnalyticsPage({ sharedData, filters, updateFilters, refresh, autoRefreshTick, exportCsv, exportXlsx, options }) {
+export default function ProjectsFundingAnalyticsPage({ sharedData, filters, updateFilters, refresh, exportCsv, exportXlsx, options }) {
   const [activeTab, setActiveTab] = useState('Funding Overview')
   const [projectResponse, setProjectResponse] = useState({ items: [], total: 0 })
   const [loading, setLoading] = useState(true)
@@ -364,7 +364,7 @@ export default function ProjectsFundingAnalyticsPage({ sharedData, filters, upda
     return () => {
       ignore = true
     }
-  }, [filters, autoRefreshTick])
+  }, [filters])
 
   function resetFilters() {
     updateFilters({ search: '', school: '', department: '', designation: '', category: '', indexing: '', year: '', page: 1 })

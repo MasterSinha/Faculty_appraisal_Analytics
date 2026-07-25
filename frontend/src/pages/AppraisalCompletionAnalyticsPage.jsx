@@ -179,7 +179,7 @@ function buildMockCompletion() {
   }
 }
 
-export default function AppraisalCompletionAnalyticsPage({ filters, updateFilters, refresh, autoRefreshTick, exportCsv, exportXlsx, options }) {
+export default function AppraisalCompletionAnalyticsPage({ filters, updateFilters, refresh, exportCsv, exportXlsx, options }) {
   const [response, setResponse] = useState(buildMockCompletion())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -209,7 +209,7 @@ export default function AppraisalCompletionAnalyticsPage({ filters, updateFilter
     return () => {
       ignore = true
     }
-  }, [filters, autoRefreshTick])
+  }, [filters])
 
   function resetFilters() {
     updateFilters({ search: '', school: '', department: '', designation: '', category: '', indexing: '', year: '', page: 1 })

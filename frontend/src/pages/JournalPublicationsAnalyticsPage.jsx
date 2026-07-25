@@ -174,7 +174,7 @@ function buildMockPublicationRecords() {
   )
 }
 
-export default function JournalPublicationsAnalyticsPage({ sharedData, filters, updateFilters, refresh, autoRefreshTick, exportCsv, exportXlsx, options }) {
+export default function JournalPublicationsAnalyticsPage({ sharedData, filters, updateFilters, refresh, exportCsv, exportXlsx, options }) {
   const [activeTab, setActiveTab] = useState('Overview')
   const [publicationResponse, setPublicationResponse] = useState({ items: [], total: 0 })
   const [loading, setLoading] = useState(true)
@@ -202,7 +202,7 @@ export default function JournalPublicationsAnalyticsPage({ sharedData, filters, 
     return () => {
       ignore = true
     }
-  }, [filters, autoRefreshTick])
+  }, [filters])
 
   function resetFilters() {
     updateFilters({ search: '', school: '', department: '', designation: '', category: '', indexing: '', year: '', page: 1 })

@@ -262,7 +262,7 @@ function buildMockDepartments() {
   })
 }
 
-export default function DepartmentResearchPerformancePage({ filters, updateFilters, refresh, autoRefreshTick, exportCsv, exportXlsx, options }) {
+export default function DepartmentResearchPerformancePage({ filters, updateFilters, refresh, exportCsv, exportXlsx, options }) {
   const [response, setResponse] = useState({ items: buildMockDepartments() })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -290,7 +290,7 @@ export default function DepartmentResearchPerformancePage({ filters, updateFilte
     return () => {
       ignore = true
     }
-  }, [filters, autoRefreshTick])
+  }, [filters])
 
   function resetFilters() {
     updateFilters({ search: '', school: '', department: '', designation: '', category: '', indexing: '', year: '', page: 1 })

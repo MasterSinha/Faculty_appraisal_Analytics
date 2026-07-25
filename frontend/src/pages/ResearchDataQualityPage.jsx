@@ -149,7 +149,7 @@ function buildMockAlerts() {
   })
 }
 
-export default function ResearchDataQualityPage({ filters, updateFilters, refresh, autoRefreshTick, exportCsv, exportXlsx, options }) {
+export default function ResearchDataQualityPage({ filters, updateFilters, refresh, exportCsv, exportXlsx, options }) {
   const [activeTab, setActiveTab] = useState('Overview')
   const [response, setResponse] = useState({ alerts: buildMockAlerts(), review_supported: false })
   const [loading, setLoading] = useState(true)
@@ -176,7 +176,7 @@ export default function ResearchDataQualityPage({ filters, updateFilters, refres
     return () => {
       ignore = true
     }
-  }, [filters, autoRefreshTick])
+  }, [filters])
 
   function resetFilters() {
     updateFilters({ search: '', school: '', department: '', designation: '', category: '', indexing: '', year: '', page: 1 })

@@ -178,7 +178,7 @@ function buildMockRows() {
   })
 }
 
-export default function TeachingResearchAnalyticsPage({ filters, updateFilters, refresh, autoRefreshTick, exportCsv, exportXlsx, options }) {
+export default function TeachingResearchAnalyticsPage({ filters, updateFilters, refresh, exportCsv, exportXlsx, options }) {
   const [activeTab, setActiveTab] = useState('Faculty Quadrant')
   const [response, setResponse] = useState({ items: buildMockRows() })
   const [loading, setLoading] = useState(true)
@@ -205,7 +205,7 @@ export default function TeachingResearchAnalyticsPage({ filters, updateFilters, 
     return () => {
       ignore = true
     }
-  }, [filters, autoRefreshTick])
+  }, [filters])
 
   function resetFilters() {
     updateFilters({ search: '', school: '', department: '', designation: '', category: '', indexing: '', year: '', page: 1 })

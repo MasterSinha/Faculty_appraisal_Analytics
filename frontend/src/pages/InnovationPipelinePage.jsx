@@ -146,7 +146,7 @@ function buildMockPipeline() {
   return { proposals, projects, external_projects: projects.filter((project) => project.external_project), patents, ipr_records: ipr, products_developed: products }
 }
 
-export default function InnovationPipelinePage({ sharedData, filters, updateFilters, refresh, autoRefreshTick, exportCsv, exportXlsx, options }) {
+export default function InnovationPipelinePage({ sharedData, filters, updateFilters, refresh, exportCsv, exportXlsx, options }) {
   const [activeTab, setActiveTab] = useState('Institutional Funnel')
   const [response, setResponse] = useState(buildMockPipeline())
   const [loading, setLoading] = useState(true)
@@ -180,7 +180,7 @@ export default function InnovationPipelinePage({ sharedData, filters, updateFilt
     return () => {
       ignore = true
     }
-  }, [filters, autoRefreshTick])
+  }, [filters])
 
   function resetFilters() {
     updateFilters({ search: '', school: '', department: '', designation: '', category: '', indexing: '', year: '', page: 1 })
