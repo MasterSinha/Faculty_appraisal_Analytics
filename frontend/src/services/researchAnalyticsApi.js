@@ -40,8 +40,8 @@ async function request(path, params = {}) {
 }
 
 export const researchAnalyticsApi = {
-  overview: async () => {
-    const data = await request('/overview')
+  overview: async (params = {}) => {
+    const data = await request('/overview', params)
     return {
       ...data,
       total_faculty: data.total_active_faculty,
@@ -55,8 +55,8 @@ export const researchAnalyticsApi = {
       total_vc_score: data.total_research_score || 0,
     }
   },
-  indexing: async () => {
-    const overview = await request('/overview')
+  indexing: async (params = {}) => {
+    const overview = await request('/overview', params)
     return {
       data: [
         { indexing: 'Journals', total_papers: overview.total_journal_publications, total_faculty: overview.faculty_with_journal_publication, vc_score: 0 },
@@ -104,8 +104,8 @@ export const researchAnalyticsApi = {
       },
     }
   },
-  trend: async () => {
-    const data = await request('/trends')
+  trend: async (params = {}) => {
+    const data = await request('/trends', params)
     return {
       data: (data.publications_by_academic_year || []).map((item) => ({
         year: item.academic_year,
@@ -113,8 +113,8 @@ export const researchAnalyticsApi = {
       })),
     }
   },
-  projects: async () => {
-    const data = await request('/funding')
+  projects: async (params = {}) => {
+    const data = await request('/funding', params)
     return {
       data: [
         { group: 'funding_agency', name: 'Total sanctioned', total: 1, amount: data.total_sanctioned_funding },
@@ -122,8 +122,8 @@ export const researchAnalyticsApi = {
       ],
     }
   },
-  scores: async () => {
-    const data = await request('/overview')
+  scores: async (params = {}) => {
+    const data = await request('/overview', params)
     return {
       self_score: data.total_journal_publications,
       director_score: data.total_book_publications,
@@ -135,8 +135,8 @@ export const researchAnalyticsApi = {
       unchanged_records: 0,
     }
   },
-  topFaculty: async (limit = 10) => {
-    const data = await request('/faculty', { page_size: limit })
+  topFaculty: async (limit = 10, params = {}) => {
+    const data = await request('/faculty', { ...params, page_size: limit })
     return {
       data: (data.items || []).map((item) => ({
         ...item,

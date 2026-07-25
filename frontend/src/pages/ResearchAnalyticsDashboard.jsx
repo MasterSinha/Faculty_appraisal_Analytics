@@ -110,7 +110,7 @@ export default function ResearchAnalyticsDashboard() {
   function handleReset() {
     updateFilters({
       page: 1, page_size: 10, search: '', school: '',
-      department: '', indexing: '', year: '',
+      department: '', designation: '', category: '', indexing: '', year: '',
       sort_by: 'total_research_papers', sort_order: 'desc',
     })
   }
@@ -151,6 +151,26 @@ export default function ResearchAnalyticsDashboard() {
     guidance: Number(ov.total_research_scholars_guided || 0),
     conferences: Number(ov.total_conferences || 0),
   }]
+  const schoolPublicationRows = (() => {
+    const schoolMap = new Map()
+    depts.forEach((department) => {
+      const school = String(department.school || department.school_name || '').trim()
+      if (!school) return
+      schoolMap.set(school, (schoolMap.get(school) || 0) + Number(department.journal_publications || department.total_research_papers || 0))
+    })
+
+    if (!schoolMap.size) {
+      ;(data.faculty?.items || []).forEach((faculty) => {
+        const school = String(faculty.school || faculty.school_name || '').trim()
+        if (!school) return
+        schoolMap.set(school, (schoolMap.get(school) || 0) + Number(faculty.journal_papers || faculty.total_research_papers || faculty.journal_publications || 0))
+      })
+    }
+
+    return [...schoolMap.entries()]
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value)
+  })()
 
   const primaryKpis = [
     { label: 'Active Faculty',       value: active,  icon: '👤', subtext: `${pub} publishing` },
@@ -266,9 +286,10 @@ export default function ResearchAnalyticsDashboard() {
                 color="var(--indigo)"
               />
               <RankingList
-                title="Publications by department"
-                subtitle="Dept analytics"
-                rows={depts.map((d) => ({ label: d.department, value: d.journal_publications || 0 }))}
+                title="Publications by school"
+                subtitle="School analytics"
+                rows={schoolPublicationRows}
+                emptyMessage="No school publication data"
               />
               <HeatmapChart
                 title="Participation rate by department"
