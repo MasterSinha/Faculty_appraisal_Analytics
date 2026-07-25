@@ -8,6 +8,7 @@ import SparklineRow from '../components/research-analytics/charts/SparklineRow'
 import StatRing from '../components/research-analytics/charts/StatRing'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
+import { departmentLabel } from '../utils/academicUnit'
 
 const tabs = ['Funding Overview', 'Research Projects', 'External Projects', 'Proposals', 'Funding Agencies', 'Faculty and Department Funding']
 
@@ -259,7 +260,7 @@ function ProjectsTable({ projects, proposals }) {
           <div className="funding-table-row" key={record.id || `${mode}-${index}`}>
             <strong>{record.title || record.project_title || '-'}</strong>
             <span>{record.full_name || record.faculty_name || record.faculty_email || '-'}</span>
-            <span>{record.department || '-'}</span>
+            <span>{departmentLabel(record)}</span>
             <span>{record.school || '-'}</span>
             <span>{record.agency || record.funding_agency || '-'}</span>
             <span>{record.sanction_date || '-'}</span>
@@ -368,7 +369,7 @@ export default function ProjectsFundingAnalyticsPage({ sharedData, filters, upda
   const fundingPerActive = activeFaculty ? totalSanctioned / activeFaculty : 0
   const fundingPerFunded = fundedFaculty.size ? totalSanctioned / fundedFaculty.size : 0
 
-  const departmentFunding = Object.entries(groupBy(projects, (record) => record.department)).map(([label, rows]) => ({ label, value: sumAmount(rows), count: rows.length })).sort((a, b) => b.value - a.value)
+  const departmentFunding = Object.entries(groupBy(projects, (record) => departmentLabel(record))).map(([label, rows]) => ({ label, value: sumAmount(rows), count: rows.length })).sort((a, b) => b.value - a.value)
   const schoolFunding = Object.entries(groupBy(projects, (record) => record.school)).map(([label, rows]) => ({ label, value: sumAmount(rows), count: rows.length })).sort((a, b) => b.value - a.value)
   const facultyFunding = Object.entries(groupBy(projects, (record) => record.faculty_email)).map(([email, rows]) => ({ label: rows[0]?.full_name || email, value: sumAmount(rows), count: rows.length })).sort((a, b) => b.value - a.value)
   const agencyFunding = Object.entries(groupBy(projects, (record) => record.agency || record.funding_agency)).map(([label, rows]) => ({ label, value: sumAmount(rows), count: rows.length })).sort((a, b) => b.value - a.value)

@@ -10,6 +10,7 @@ import StatRing from '../components/research-analytics/charts/StatRing'
 import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
+import { departmentLabel } from '../utils/academicUnit'
 
 const tabs = ['Faculty Quadrant', 'Department Balance', 'Teaching Components', 'Research Components', 'Trends']
 
@@ -134,7 +135,7 @@ function FacultyBalanceTable({ rows }) {
         {filtered.map((row) => (
           <div className="teaching-balance-table-row" key={row.email || row.faculty_name}>
             <strong>{row.faculty_name}</strong>
-            <span>{row.department}</span>
+            <span>{departmentLabel(row)}</span>
             <span>{row.school}</span>
             <span>{percent(row.teaching_score)}</span>
             <span>{percent(row.research_score)}</span>
@@ -234,7 +235,7 @@ export default function TeachingResearchAnalyticsPage({ filters, updateFilters, 
   const teachingFocused = rows.filter((row) => row.quadrant === 'Teaching Focused')
   const researchFocused = rows.filter((row) => row.quadrant === 'Research Focused')
   const development = rows.filter((row) => row.quadrant === 'Development Opportunity')
-  const departmentRows = Object.entries(groupBy(rows, (row) => row.department)).map(([label, items]) => ({
+  const departmentRows = Object.entries(groupBy(rows, (row) => departmentLabel(row))).map(([label, items]) => ({
     label,
     teaching: average(items, 'teaching_score'),
     research: average(items, 'research_score'),

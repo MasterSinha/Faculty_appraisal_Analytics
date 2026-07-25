@@ -12,6 +12,7 @@ import StatRing from '../components/research-analytics/charts/StatRing'
 import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
+import { departmentLabel } from '../utils/academicUnit'
 
 const tabs = ['Overview', 'Conferences', 'Awards', 'Department Comparison', 'Faculty Details']
 
@@ -113,7 +114,7 @@ function RecordsTable({ title, mode, records }) {
         {pageItems.map((record, index) => (
           <div className="conference-table-row" key={record.id || `${mode}-${index}`}>
             <strong>{record.full_name || record.faculty_name || record.faculty_email || '-'}</strong>
-            <span>{record.department || '-'}</span>
+            <span>{departmentLabel(record)}</span>
             <span>{record.title || record.award_title || '-'}</span>
             {mode === 'conference' ? (
               <>
@@ -220,13 +221,13 @@ export default function ConferencesAwardsAnalyticsPage({ sharedData, filters, up
     .map(([label, rows]) => ({ label, value: rows.length }))
     .sort((a, b) => b.value - a.value)
 
-  const conferenceDepartmentRows = byCount(conferences, (record) => record.department)
+  const conferenceDepartmentRows = byCount(conferences, (record) => departmentLabel(record))
   const conferenceSchoolRows = byCount(conferences, (record) => record.school)
   const conferenceYearRows = byCount(conferences, (record) => record.academic_year).sort((a, b) => String(a.label).localeCompare(String(b.label)))
   const conferenceTypeRows = byCount(conferences, (record) => record.type || record.conference_type)
   const conferenceLevelRows = byCount(conferences, (record) => record.level)
   const organisationRows = byCount(conferences, (record) => record.organisation || record.organization || record.institution)
-  const awardDepartmentRows = byCount(awards, (record) => record.department)
+  const awardDepartmentRows = byCount(awards, (record) => departmentLabel(record))
   const awardSchoolRows = byCount(awards, (record) => record.school)
   const awardLevelRows = byCount(awards, (record) => record.level)
   const awardAgencyRows = byCount(awards, (record) => record.agency || record.awarding_agency)
@@ -236,12 +237,12 @@ export default function ConferencesAwardsAnalyticsPage({ sharedData, filters, up
   const multiConferenceFaculty = conferenceFacultyRows.filter((row) => row.value > 1).length
   const awardAfterResearch = awards.filter((record) => Number(record.journal_publications ?? publicationMap.get(String(record.faculty_email || '').toLowerCase()) ?? 0) > 0).length
   const highConferenceLowPublication = conferenceDepartmentRows.filter((row) => {
-    const rows = conferences.filter((record) => (record.department || 'Unknown') === row.label)
+    const rows = conferences.filter((record) => departmentLabel(record) === row.label)
     const averagePapers = rows.reduce((sum, record) => sum + Number(record.journal_publications ?? publicationMap.get(String(record.faculty_email || '').toLowerCase()) ?? 0), 0) / Math.max(rows.length, 1)
     return row.value >= 2 && averagePapers < 2
   }).length
   const associationRows = conferenceDepartmentRows.map((row) => {
-    const rows = conferences.filter((record) => (record.department || 'Unknown') === row.label)
+    const rows = conferences.filter((record) => departmentLabel(record) === row.label)
     const publications = rows.reduce((sum, record) => sum + Number(record.journal_publications ?? publicationMap.get(String(record.faculty_email || '').toLowerCase()) ?? 0), 0)
     return { label: row.label, value: row.value, publications }
   })

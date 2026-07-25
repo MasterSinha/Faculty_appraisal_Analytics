@@ -9,6 +9,7 @@ import StatRing from '../components/research-analytics/charts/StatRing'
 import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
+import { departmentLabel } from '../utils/academicUnit'
 
 const tabs = ['Overview', 'Missing Information', 'Possible Duplicates', 'Unmatched Records', 'Outliers', 'Completeness by Department']
 const severities = ['Critical', 'Warning', 'Informational']
@@ -44,7 +45,7 @@ function AlertTable({ alerts, reviewSupported }) {
   const [department, setDepartment] = useState('')
   const [search, setSearch] = useState('')
 
-  const departments = [...new Set(alerts.map((alert) => alert.department).filter(Boolean))]
+  const departments = [...new Set(alerts.map((alert) => departmentLabel(alert)).filter(Boolean))]
   const categories = [...new Set(alerts.map((alert) => alert.category).filter(Boolean))]
 
   const filtered = useMemo(() => {
@@ -52,7 +53,7 @@ function AlertTable({ alerts, reviewSupported }) {
     return alerts.filter((alert) =>
       (!severity || alert.severity === severity)
       && (!category || alert.category === category)
-      && (!department || alert.department === department)
+      && (!department || departmentLabel(alert) === department)
       && JSON.stringify(alert).toLowerCase().includes(query),
     )
   }, [alerts, severity, category, department, search])
@@ -91,7 +92,7 @@ function AlertTable({ alerts, reviewSupported }) {
             <span>{alert.alert_type}</span>
             <span>{alert.category}</span>
             <span>{alert.faculty_name || alert.faculty_email || '-'}</span>
-            <span>{alert.department || '-'}</span>
+            <span>{departmentLabel(alert)}</span>
             <span>{alert.record_title || '-'}</span>
             <span>{alert.academic_year || '-'}</span>
             <span>{alert.issue_description}</span>
@@ -189,7 +190,7 @@ export default function ResearchDataQualityPage({ filters, updateFilters, refres
   const completeness = response.completeness_percentage ?? Math.max(0, 100 - (alerts.length * 2))
   const severityRows = Object.entries(groupBy(alerts, (alert) => alert.severity)).map(([label, rows]) => ({ label, value: rows.length }))
   const categoryRows = Object.entries(groupBy(alerts, (alert) => alert.category)).map(([label, rows]) => ({ label, value: rows.length }))
-  const departmentRows = Object.entries(groupBy(alerts, (alert) => alert.department || 'Blank department')).map(([label, rows]) => ({ label, value: rows.length, completeness: Math.max(0, 100 - rows.length * 8) }))
+  const departmentRows = Object.entries(groupBy(alerts, (alert) => departmentLabel(alert))).map(([label, rows]) => ({ label, value: rows.length, completeness: Math.max(0, 100 - rows.length * 8) }))
   const tabAlerts = activeTab === 'Missing Information' ? missing
     : activeTab === 'Possible Duplicates' ? duplicates
       : activeTab === 'Unmatched Records' ? unmatched

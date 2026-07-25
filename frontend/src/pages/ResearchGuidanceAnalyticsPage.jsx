@@ -11,6 +11,7 @@ import ScatterChart from '../components/research-analytics/charts/ScatterChart'
 import StatRing from '../components/research-analytics/charts/StatRing'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
+import { departmentLabel } from '../utils/academicUnit'
 
 const tabs = ['Overview', 'Degree Analysis', 'Department Analysis', 'Faculty Supervisors', 'Guidance and Publications']
 
@@ -94,7 +95,7 @@ function GuidanceTable({ records }) {
         {pageItems.map((record, index) => (
           <div className="guidance-table-row" key={record.id || `${record.faculty_email}-${index}`}>
             <strong>{record.full_name || record.faculty_name || record.faculty_email || '-'}</strong>
-            <span>{record.department || '-'}</span>
+            <span>{departmentLabel(record)}</span>
             <span>{record.school || '-'}</span>
             <span>{normalizeDegree(record.degree)}</span>
             <span>{record.student_name || '-'}</span>
@@ -175,7 +176,7 @@ export default function ResearchGuidanceAnalyticsPage({ sharedData, filters, upd
   const avgScholarsGuiding = guidingFaculty ? records.length / guidingFaculty : 0
 
   const degreeRows = Object.entries(groupBy(records, (record) => normalizeDegree(record.degree))).map(([label, rows]) => ({ label, value: rows.length }))
-  const departmentRows = Object.entries(groupBy(records, (record) => record.department)).map(([label, rows]) => {
+  const departmentRows = Object.entries(groupBy(records, (record) => departmentLabel(record))).map(([label, rows]) => {
     const faculty = new Set(rows.map((record) => record.faculty_email).filter(Boolean))
     const phdFaculty = new Set(rows.filter((record) => normalizeDegree(record.degree) === 'PhD').map((record) => record.faculty_email).filter(Boolean))
     return {

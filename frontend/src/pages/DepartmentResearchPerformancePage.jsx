@@ -12,6 +12,7 @@ import StatRing from '../components/research-analytics/charts/StatRing'
 import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
+import { departmentLabel } from '../utils/academicUnit'
 
 const tabs = ['Comparison', 'Participation', 'Funding and Innovation', 'Research Health', 'Gaps and Opportunities']
 
@@ -218,7 +219,7 @@ function DepartmentDrawer({ department, onClose }) {
 }
 
 function buildMockDepartments() {
-  return Object.entries(groupBy(mockResearchAnalytics.faculty.items, (faculty) => faculty.department)).map(([department, facultyRows], index) => {
+  return Object.entries(groupBy(mockResearchAnalytics.faculty.items, (faculty) => departmentLabel(faculty))).map(([department, facultyRows], index) => {
     const activeFaculty = facultyRows.length
     const journalPapers = facultyRows.reduce((sum, faculty) => sum + Number(faculty.total_research_papers || 0), 0)
     const books = facultyRows.reduce((sum, faculty) => sum + Number(faculty.book_publications || 0), 0)
@@ -299,6 +300,7 @@ export default function DepartmentResearchPerformancePage({ filters, updateFilte
     const health = item.health_components ? { score: item.research_health_score, components: item.health_components } : calculateHealth(item)
     return {
       ...item,
+      department: departmentLabel(item),
       health_components: health.components,
       research_health_score: Number(health.score || 0),
       health_category: item.health_category || healthCategory(health.score),
@@ -310,7 +312,7 @@ export default function DepartmentResearchPerformancePage({ filters, updateFilte
   const topFunding = [...rows].sort((a, b) => b.funding - a.funding)[0]
   const noPatents = rows.filter((row) => Number(row.patents || 0) === 0)
   const attention = rows.filter((row) => row.health_category === 'Needs Attention')
-  const chartRows = rows.map((row) => ({ ...row, label: row.department, value: row.total_research_output }))
+  const chartRows = rows.map((row) => ({ ...row, label: departmentLabel(row), value: row.total_research_output }))
 
   return (
     <main className="research-page department-performance-page">

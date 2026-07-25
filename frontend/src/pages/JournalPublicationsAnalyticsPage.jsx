@@ -8,6 +8,7 @@ import DonutChart from '../components/research-analytics/charts/DonutChart'
 import HorizontalBarChart from '../components/research-analytics/charts/HorizontalBarChart'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
+import { departmentLabel } from '../utils/academicUnit'
 
 const tabs = ['Overview', 'Department Analysis', 'Faculty Analysis', 'Quality and Indexing', 'Publication Records']
 
@@ -129,7 +130,7 @@ function PublicationRecordsTable({ records }) {
         {pageItems.map((record, index) => (
           <div className="journal-table-row" key={record.id || `${record.faculty_email}-${index}`}>
             <strong>{record.full_name || record.faculty_name || record.faculty_email || '-'}</strong>
-            <span>{record.department || '-'}</span>
+            <span>{departmentLabel(record)}</span>
             <span>{record.school || '-'}</span>
             <span>{record.title || '-'}</span>
             <span>{record.journal || '-'}</span>
@@ -217,7 +218,7 @@ export default function JournalPublicationsAnalyticsPage({ sharedData, filters, 
   const papersPerPublishing = publishingFaculty ? publications.length / publishingFaculty : 0
   const indexedPercentage = publications.length ? (indexedPublications / publications.length) * 100 : 0
 
-  const departmentRows = Object.entries(groupBy(publications, (record) => record.department)).map(([department, rows]) => {
+  const departmentRows = Object.entries(groupBy(publications, (record) => departmentLabel(record))).map(([department, rows]) => {
     const faculty = new Set(rows.map((record) => record.faculty_email).filter(Boolean))
     const topThree = Object.values(groupBy(rows, (record) => record.faculty_email)).map((items) => items.length).sort((a, b) => b - a).slice(0, 3).reduce((sum, value) => sum + value, 0)
     return {

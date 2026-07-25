@@ -9,6 +9,7 @@ import HorizontalBarChart from '../components/research-analytics/charts/Horizont
 import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
+import { departmentLabel } from '../utils/academicUnit'
 
 const tabs = ['Patent Overview', 'Patent Status', 'IPR Analytics', 'Faculty Participation', 'Records']
 
@@ -176,7 +177,7 @@ function RecordsTable({ patents, iprRecords }) {
           return (
             <div className={`patents-table-row ${mode}`} key={record.id || `${mode}-${index}`}>
               <strong>{record.full_name || record.faculty_name || record.faculty_email || '-'}</strong>
-              <span>{record.department || '-'}</span>
+              <span>{departmentLabel(record)}</span>
               {mode === 'patents' && <span>{record.school || '-'}</span>}
               <span>{record.title || '-'}</span>
               {mode === 'patents' && <span>{record.type || '-'}</span>}
@@ -285,7 +286,7 @@ export default function PatentsIprAnalyticsPage({ sharedData, filters, updateFil
   const statusRows = Object.entries(groupBy(patents, (record) => normalizeStatus(record.patent_status))).map(([label, rows]) => ({ label, value: rows.length }))
   const iprStatusRows = Object.entries(groupBy(iprRecords, (record) => normalizeStatus(record.ipr_status))).map(([label, rows]) => ({ label, value: rows.length }))
   const scopeRows = Object.entries(groupBy(patents, (record) => normalizeScope(record.scope))).map(([label, rows]) => ({ label, value: rows.length }))
-  const departmentRows = Object.entries(groupBy(patents, (record) => record.department)).map(([label, rows]) => ({ label, value: rows.length, participation: activeFaculty ? (new Set(rows.map((record) => record.faculty_email)).size / activeFaculty) * 100 : 0 }))
+  const departmentRows = Object.entries(groupBy(patents, (record) => departmentLabel(record))).map(([label, rows]) => ({ label, value: rows.length, participation: activeFaculty ? (new Set(rows.map((record) => record.faculty_email)).size / activeFaculty) * 100 : 0 }))
   const schoolRows = Object.entries(groupBy(patents, (record) => record.school)).map(([label, rows]) => ({ label, value: rows.length, grantedShare: rows.length ? (rows.filter((record) => normalizeStatus(record.patent_status) === 'Granted').length / rows.length) * 100 : 0 }))
   const yearRows = Object.entries(groupBy(patents, (record) => String(record.patent_date || record.academic_year || '').slice(0, 4))).map(([label, rows]) => ({ label, value: rows.length }))
   const facultyRows = Object.entries(groupBy(patents, (record) => record.faculty_email)).map(([email, rows]) => ({ label: rows[0]?.full_name || email, value: rows.length })).sort((a, b) => b.value - a.value)
@@ -293,7 +294,7 @@ export default function PatentsIprAnalyticsPage({ sharedData, filters, updateFil
   const journalNoPatents = [...journalFaculty].filter((email) => !patentFaculty.has(email)).length
   const multiPatentFaculty = Object.values(groupBy(patents, (record) => record.faculty_email)).filter((rows) => rows.length > 1).length
   const noPatentDepartments = (options?.departments || []).filter((department) => !departmentRows.some((row) => row.label === department))
-  const iprDepartments = new Set(iprRecords.map((record) => record.department).filter(Boolean))
+  const iprDepartments = new Set(iprRecords.map((record) => departmentLabel(record)).filter(Boolean))
   const noIprDepartments = (options?.departments || []).filter((department) => !iprDepartments.has(department))
 
   const primaryKpis = [
@@ -372,7 +373,7 @@ export default function PatentsIprAnalyticsPage({ sharedData, filters, updateFil
           {activeTab === 'IPR Analytics' && (
             <section className="executive-chart-row two-col">
               <StatusDonut title="IPR status distribution" rows={iprStatusRows} />
-              <MiniBarChart title="IPR records by department" subtitle="IPR contribution" rows={Object.entries(groupBy(iprRecords, (record) => record.department)).map(([label, rows]) => ({ label, value: rows.length }))} />
+              <MiniBarChart title="IPR records by department" subtitle="IPR contribution" rows={Object.entries(groupBy(iprRecords, (record) => departmentLabel(record))).map(([label, rows]) => ({ label, value: rows.length }))} />
               <article className="quality-card">
                 <h2>Departments with no IPR contribution</h2>
                 <div className="books-chip-list">{noIprDepartments.map((department) => <span key={department}>{department}</span>)}</div>

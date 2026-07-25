@@ -13,6 +13,7 @@ import StatRing from '../components/research-analytics/charts/StatRing'
 import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
+import { departmentLabel } from '../utils/academicUnit'
 
 const drawerTabs = ['Overview', 'Publications', 'Books', 'Patents and IPR', 'Projects and Funding', 'Research Guidance', 'Conferences and Awards', 'Teaching Balance', 'Documents']
 
@@ -162,7 +163,7 @@ function FacultyTable({ facultyRows, onOpen }) {
             <button className="faculty-performance-table-row" type="button" onClick={() => setExpanded(expanded === faculty.email ? '' : faculty.email)}>
               <strong>{faculty.faculty_name || faculty.full_name}</strong>
               <span>{faculty.employee_id || '-'}</span>
-              <span>{faculty.department || '-'}</span>
+              <span>{departmentLabel(faculty)}</span>
               <span>{faculty.school || '-'}</span>
               <span>{faculty.designation || '-'}</span>
               <span>{faculty.journal_papers}</span>

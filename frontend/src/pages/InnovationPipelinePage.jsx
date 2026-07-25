@@ -9,6 +9,7 @@ import HorizontalBarChart from '../components/research-analytics/charts/Horizont
 import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
+import { departmentLabel } from '../utils/academicUnit'
 
 const tabs = ['Institutional Funnel', 'Department Funnel', 'Faculty Innovation', 'Academic-Year Trend', 'Pipeline Gaps']
 const stageLabels = ['Research Proposals', 'Sanctioned Projects', 'Patent or IPR', 'Granted Patents', 'Products Developed']
@@ -223,19 +224,19 @@ export default function InnovationPipelinePage({ sharedData, filters, updateFilt
     return [...map.values()].sort((a, b) => b.value - a.value)
   })()
 
-  const departmentRows = byCount([...proposals, ...projects, ...patentIpr, ...products], (record) => record.department)
+  const departmentRows = byCount([...proposals, ...projects, ...patentIpr, ...products], (record) => departmentLabel(record))
   const schoolRows = byCount([...proposals, ...projects, ...patentIpr, ...products], (record) => record.school)
   const yearRows = Object.entries(groupBy([...proposals, ...projects, ...patentIpr, ...products], (record) => record.academic_year))
     .map(([label, rows]) => ({ label, value: rows.length }))
     .sort((a, b) => String(a.label).localeCompare(String(b.label)))
-  const projectDepartments = new Set(projects.map((record) => record.department).filter(Boolean))
-  const patentDepartments = new Set(patentIpr.map((record) => record.department).filter(Boolean))
-  const productDepartments = new Set(products.map((record) => record.department).filter(Boolean))
+  const projectDepartments = new Set(projects.map((record) => departmentLabel(record)).filter(Boolean))
+  const patentDepartments = new Set(patentIpr.map((record) => departmentLabel(record)).filter(Boolean))
+  const productDepartments = new Set(products.map((record) => departmentLabel(record)).filter(Boolean))
   const projectSchools = new Set(externalProjects.map((record) => record.school).filter(Boolean))
   const allSchools = new Set((sharedData.faculty?.items || []).map((faculty) => faculty.school).filter(Boolean))
   const patentFaculty = new Set(patentIpr.map((record) => String(record.faculty_email || '').toLowerCase()).filter(Boolean))
   const productFaculty = new Set(products.map((record) => String(record.faculty_email || '').toLowerCase()).filter(Boolean))
-  const strongFundingWeakProducts = Object.entries(groupBy(projects, (record) => record.department)).filter(([department, rows]) => {
+  const strongFundingWeakProducts = Object.entries(groupBy(projects, (record) => departmentLabel(record))).filter(([department, rows]) => {
     const amount = rows.reduce((sum, row) => sum + Number(row.amount || row.sanctioned_amount || 0), 0)
     return amount >= 1000000 && !productDepartments.has(department)
   }).length
@@ -331,7 +332,7 @@ export default function InnovationPipelinePage({ sharedData, filters, updateFilt
           {activeTab === 'Pipeline Gaps' && (
             <section className="executive-chart-row two-col">
               <InsightCard title="Gap analytics" items={gapItems} />
-              <MiniBarChart title="Departments with product output" subtitle="Products developed" rows={byCount(products, (record) => record.department)} />
+              <MiniBarChart title="Departments with product output" subtitle="Products developed" rows={byCount(products, (record) => departmentLabel(record))} />
             </section>
           )}
         </>

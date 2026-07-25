@@ -12,6 +12,7 @@ import StatRing from '../components/research-analytics/charts/StatRing'
 import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
+import { departmentLabel } from '../utils/academicUnit'
 
 const tableModes = [
   ['not_submitted', 'Faculty who have not submitted'],
@@ -136,7 +137,7 @@ function OperationalTables({ tables }) {
         {filtered.map((row, index) => (
           <div className="completion-followup-table-row" key={row.id || `${mode}-${index}`}>
             <strong>{row.full_name || row.faculty_name || row.faculty_email || '-'}</strong>
-            <span>{row.department || '-'}</span>
+            <span>{departmentLabel(row)}</span>
             <span>{row.school || '-'}</span>
             <span>{displayStatus(row.status)}</span>
             <span>{row.academic_year || '-'}</span>
@@ -224,7 +225,9 @@ export default function AppraisalCompletionAnalyticsPage({ filters, updateFilter
   const statusRows = Object.entries(groupBy(appraisals, (item) => displayStatus(item.status))).map(([label, rows]) => ({ label, value: rows.length }))
   const vcApproved = statusRows.find((row) => row.label === 'VC Approved')?.value || 0
   const researchActiveSubmitted = researchActive.filter((item) => item.submitted).length
-  const departmentMetrics = response.department_metrics?.length ? response.department_metrics : Object.entries(groupBy(appraisals, (item) => item.department)).map(([department, rows]) => {
+  const departmentMetrics = response.department_metrics?.length
+    ? response.department_metrics.map((row) => ({ ...row, department: departmentLabel(row) }))
+    : Object.entries(groupBy(appraisals, (item) => departmentLabel(item))).map(([department, rows]) => {
     const submittedCount = rows.filter((item) => item.submitted).length
     const researchActiveRows = rows.filter((item) => item.research_active)
     return {

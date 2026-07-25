@@ -9,6 +9,7 @@ import HorizontalBarChart from '../components/research-analytics/charts/Horizont
 import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
+import { departmentLabel } from '../utils/academicUnit'
 
 const tabs = ['Overview', 'Department Analysis', 'Publishers and ISBN', 'Authorship and Collaboration', 'Records']
 
@@ -98,7 +99,7 @@ function BooksRecordsTable({ records }) {
           <div className="books-table-row" key={record.id || `${record.faculty_email}-${index}`}>
             <strong>{record.full_name || record.faculty_name || record.faculty_email || '-'}</strong>
             <span>{record.school || '-'}</span>
-            <span>{record.department || '-'}</span>
+            <span>{departmentLabel(record)}</span>
             <span>{record.title || '-'}</span>
             <span>{record.book || '-'}</span>
             <span>{record.isbn || '-'}</span>
@@ -189,7 +190,7 @@ export default function BooksAnalyticsPage({ sharedData, filters, updateFilters,
   const booksPerPublishing = publishingFaculty ? books.length / publishingFaculty : 0
   const isbnCompletion = books.length ? (withIsbn / books.length) * 100 : 0
 
-  const departmentRows = Object.entries(groupBy(books, (record) => record.department)).map(([department, rows]) => {
+  const departmentRows = Object.entries(groupBy(books, (record) => departmentLabel(record))).map(([department, rows]) => {
     const faculty = new Set(rows.map((record) => record.faculty_email).filter(Boolean))
     return {
       label: department,

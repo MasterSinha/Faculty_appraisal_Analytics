@@ -11,6 +11,7 @@ import RankingList from '../components/research-analytics/charts/RankingList'
 import TileGrid from '../components/research-analytics/charts/TileGrid'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
+import { departmentLabel } from '../utils/academicUnit'
 
 function formatNumber(value) {
   return new Intl.NumberFormat('en-IN').format(value || 0)
@@ -187,7 +188,7 @@ function SchoolDrawer({ school, onClose }) {
 
 function buildMockSchools() {
   return Object.entries(groupBy(mockResearchAnalytics.faculty.items, (faculty) => faculty.school)).map(([school, facultyRows], index) => {
-    const departments = Object.keys(groupBy(facultyRows, (faculty) => faculty.department))
+    const departments = Object.keys(groupBy(facultyRows, (faculty) => departmentLabel(faculty)))
     const journalPapers = facultyRows.reduce((sum, faculty) => sum + Number(faculty.total_research_papers || 0), 0)
     const books = facultyRows.reduce((sum, faculty) => sum + Number(faculty.book_publications || 0), 0)
     const patents = facultyRows.reduce((sum, faculty) => sum + Number(faculty.patents || 0), 0)
