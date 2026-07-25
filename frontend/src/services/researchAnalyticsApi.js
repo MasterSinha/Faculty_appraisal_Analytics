@@ -7,7 +7,7 @@ function buildUrl(path, params = {}) {
 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
-      url.searchParams.set(key, value)
+      url.searchParams.set(key === 'year' ? 'academic_year' : key, value)
     }
   })
 
@@ -148,6 +148,22 @@ export const researchAnalyticsApi = {
   },
   topJournals: async () => ({ data: [] }),
   filters: () => request('/filters'),
+  departments: (params) => request('/departments', { page_size: 100, ...params }),
+  insights: (params) => request('/insights', params),
+  dataQuality: (params) => request('/data-quality', params),
+  books: (params) => request('/books', { page_size: 500, ...params }),
+  publications: (params) => request('/publications', { page_size: 500, ...params }),
+  patents: (params) => request('/patents', { page_size: 500, ...params }),
+  projectRecords: (params) => request('/projects', { page_size: 500, ...params }),
+  funding: (params) => request('/funding', params),
+  guidance: (params) => request('/guidance', { page_size: 500, ...params }),
+  conferencesAwards: (params) => request('/conferences-awards', { page_size: 500, ...params }),
+  innovationPipeline: (params) => request('/innovation-pipeline', { page_size: 500, ...params }),
+  facultyPerformance: (params) => request('/faculty-performance', { page_size: 500, ...params }),
+  departmentPerformance: (params) => request('/department-performance', { page_size: 500, ...params }),
+  schoolPerformance: (params) => request('/school-performance', { page_size: 500, ...params }),
+  teachingResearchBalance: (params) => request('/teaching-research-balance', { page_size: 500, ...params }),
+  appraisalCompletion: (params) => request('/appraisal-completion', { page_size: 500, ...params }),
   exportUrl: (params = {}) => {
     return buildUrl('/export', params).toString()
   },

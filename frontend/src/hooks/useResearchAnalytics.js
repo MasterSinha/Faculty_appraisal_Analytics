@@ -25,6 +25,9 @@ export function useResearchAnalytics() {
     scores: null,
     topFaculty: [],
     topJournals: [],
+    departments: { items: [], page: 1, page_size: 100, total: 0, total_pages: 0 },
+    insights: [],
+    dataQuality: {},
     filterOptions: null,
   })
   const [loading, setLoading] = useState(true)
@@ -52,9 +55,12 @@ export function useResearchAnalytics() {
         researchAnalyticsApi.topFaculty(10),
         researchAnalyticsApi.topJournals(10),
         researchAnalyticsApi.filters(),
+        researchAnalyticsApi.departments(filters),
+        researchAnalyticsApi.insights(filters),
+        researchAnalyticsApi.dataQuality(filters),
       ])
 
-      const [overviewRes, indexingRes, facultyRes, trendRes, projectsRes, scoresRes, topFacultyRes, topJournalsRes, filterOptionsRes] = results
+      const [overviewRes, indexingRes, facultyRes, trendRes, projectsRes, scoresRes, topFacultyRes, topJournalsRes, filterOptionsRes, departmentsRes, insightsRes, dataQualityRes] = results
 
       const overview = overviewRes.status === 'fulfilled' ? overviewRes.value : null
       const indexing = indexingRes.status === 'fulfilled' ? indexingRes.value?.data || [] : []
@@ -65,6 +71,9 @@ export function useResearchAnalytics() {
       const topFaculty = topFacultyRes.status === 'fulfilled' ? topFacultyRes.value?.data || [] : []
       const topJournals = topJournalsRes.status === 'fulfilled' ? topJournalsRes.value?.data || [] : []
       const filterOptions = filterOptionsRes.status === 'fulfilled' ? filterOptionsRes.value : null
+      const departments = departmentsRes.status === 'fulfilled' ? departmentsRes.value : { items: [], page: 1, page_size: 100, total: 0, total_pages: 0 }
+      const insights = insightsRes.status === 'fulfilled' ? insightsRes.value?.insights || [] : []
+      const dataQuality = dataQualityRes.status === 'fulfilled' ? dataQualityRes.value || {} : {}
 
       const failedCount = results.filter((r) => r.status === 'rejected').length
 
@@ -78,6 +87,9 @@ export function useResearchAnalytics() {
           scores: scores || mockResearchAnalytics.scores,
           topFaculty,
           topJournals,
+          departments,
+          insights,
+          dataQuality,
           filterOptions: filterOptions || { schools: [], departments: [], years: [], indexing_categories: [], project_statuses: [], funding_agencies: [] },
         })
         setDemoMode(false)

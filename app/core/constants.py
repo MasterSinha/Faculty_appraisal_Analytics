@@ -16,7 +16,7 @@ RESEARCH_TABLES: Dict[str, List[str]] = {
     "qualification_enhancement": ["qualification_enhancement"],
 }
 
-FACULTY_TABLES: List[str] = ["faculty", "users", "faculty_details", "employees", "user_profiles"]
+FACULTY_TABLES: List[str] = ["faculty_profiles", "faculty", "users", "faculty_details", "employees", "user_profiles"]
 FACULTY_LINK_COLUMNS: List[str] = ["faculty_id", "user_id", "employee_id", "appraisal_id", "submitted_by", "created_by"]
 NAME_COLUMNS: List[str] = ["faculty_name", "name", "full_name", "employee_name", "first_name"]
 EMAIL_COLUMNS: List[str] = ["email", "email_id", "official_email"]

@@ -1,7 +1,8 @@
 export default function FilterBar({ filters, options, onChange, onReset }) {
   const schools       = options?.schools              || []
   const departments   = options?.departments           || []
-  const years         = options?.years                 || []
+  const years         = options?.academic_years || options?.years || []
+  const designations  = options?.designations          || []
   const indexingCats  = options?.indexing_categories   || []
 
   function handleChange(field, value) {
@@ -63,7 +64,35 @@ export default function FilterBar({ filters, options, onChange, onReset }) {
 
         {/* Indexing */}
         <div className="filter-group">
-          <label htmlFor="filter-indexing">Indexing</label>
+          <label htmlFor="filter-designation">Designation</label>
+          <select
+            id="filter-designation"
+            value={filters.designation || ''}
+            onChange={(e) => handleChange('designation', e.target.value)}
+          >
+            <option value="">All Designations</option>
+            {designations.map((item) => (
+              <option key={item} value={item}>{item}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-group">
+          <label htmlFor="filter-category">Research Category</label>
+          <select
+            id="filter-category"
+            value={filters.category || ''}
+            onChange={(e) => handleChange('category', e.target.value)}
+          >
+            <option value="">All Categories</option>
+            {['Journals', 'Books', 'Patents', 'Projects', 'Proposals', 'Guidance', 'Conferences', 'Awards', 'Products'].map((item) => (
+              <option key={item} value={item}>{item}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-group">
+          <label htmlFor="filter-indexing">Publication Indexing</label>
           <select
             id="filter-indexing"
             value={filters.indexing || ''}
@@ -78,7 +107,7 @@ export default function FilterBar({ filters, options, onChange, onReset }) {
 
         {/* Search */}
         <div className="filter-group search-group">
-          <label htmlFor="filter-search">Search Faculty</label>
+          <label htmlFor="filter-search">Faculty</label>
           <input
             id="filter-search"
             type="text"
