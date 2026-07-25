@@ -132,7 +132,7 @@ function buildMockGuidanceRecords() {
   )
 }
 
-export default function ResearchGuidanceAnalyticsPage({ sharedData, filters, updateFilters, refresh, exportCsv, exportXlsx, options }) {
+export default function ResearchGuidanceAnalyticsPage({ sharedData, filters, updateFilters, refresh, autoRefreshTick, exportCsv, exportXlsx, options }) {
   const [activeTab, setActiveTab] = useState('Overview')
   const [guidanceResponse, setGuidanceResponse] = useState({ items: [], total: 0 })
   const [loading, setLoading] = useState(true)
@@ -160,7 +160,7 @@ export default function ResearchGuidanceAnalyticsPage({ sharedData, filters, upd
     return () => {
       ignore = true
     }
-  }, [filters])
+  }, [filters, autoRefreshTick])
 
   function resetFilters() {
     updateFilters({ search: '', school: '', department: '', designation: '', category: '', indexing: '', year: '', page: 1 })

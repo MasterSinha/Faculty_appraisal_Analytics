@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import FilterBar from '../components/research-analytics/FilterBar'
 import InsightPanel from '../components/research-analytics/InsightPanel'
 import MetricCardGrid from '../components/research-analytics/MetricCardGrid'
@@ -82,9 +82,19 @@ export default function ResearchAnalyticsDashboard() {
   const { data, filters, updateFilters, loading, error, demoMode, refresh, exportCsv, exportXlsx } = useResearchAnalytics()
   const [activePage, setActivePage] = useState('overview')
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [autoRefreshTick, setAutoRefreshTick] = useState(0)
 
-  const sharedProps = { sharedData: data, filters, updateFilters, refresh, exportCsv, exportXlsx, options: data.filterOptions }
-  const perfProps   = { filters, updateFilters, refresh, exportCsv, exportXlsx, options: data.filterOptions }
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      refresh()
+      setAutoRefreshTick((tick) => tick + 1)
+    }, 10000)
+
+    return () => window.clearInterval(intervalId)
+  }, [refresh])
+
+  const sharedProps = { sharedData: data, filters, updateFilters, refresh, autoRefreshTick, exportCsv, exportXlsx, options: data.filterOptions }
+  const perfProps   = { filters, updateFilters, refresh, autoRefreshTick, exportCsv, exportXlsx, options: data.filterOptions }
 
   /* Sub-page routing */
   const subPages = {

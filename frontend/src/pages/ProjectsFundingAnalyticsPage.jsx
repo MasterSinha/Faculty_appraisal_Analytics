@@ -150,6 +150,12 @@ function AreaTrendChart({ title, subtitle, rows, formatter = formatNumber }) {
 
 function BubbleCloudChart({ title, subtitle, rows, formatter = formatNumber }) {
   const max = Math.max(...rows.map((row) => Number(row.value || 0)), 1)
+  const shortName = (label) => {
+    const words = String(label || 'NA').replace(/[^a-zA-Z0-9 ]/g, ' ').split(/\s+/).filter(Boolean)
+    if (!words.length) return 'NA'
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
+    return words.slice(0, 3).map((word) => word[0]).join('').toUpperCase()
+  }
 
   return (
     <article className="chart-card interactive-chart-card">
@@ -157,18 +163,35 @@ function BubbleCloudChart({ title, subtitle, rows, formatter = formatNumber }) {
         <span>{subtitle}</span>
         <h2>{title}</h2>
       </div>
-      <div className="bubble-cloud">
-        {rows.slice(0, 9).map((row, index) => {
-          const size = 72 + (Number(row.value || 0) / max) * 82
-          return (
-            <button type="button" key={row.label} style={{ width: size, height: size }} title={`${row.label}: ${formatter(row.value)}`}>
-              <strong>{formatter(row.value)}</strong>
-              <span>{row.label}</span>
-              <em>{row.count ? `${row.count} projects` : ''}</em>
-              <i>{index + 1}</i>
-            </button>
-          )
-        })}
+      <div className="bubble-panel">
+        <div className="bubble-wrap">
+          <div className="bubble-cloud">
+            {rows.slice(0, 9).map((row, index) => {
+              const color = ['#6366f1', '#06b6d4', '#22c55e', '#f59e0b', '#a855f7', '#ec4899'][index % 6]
+              const size = 72 + (Number(row.value || 0) / max) * 82
+              return (
+                <button type="button" className="bubble-cloud-node" key={row.label} style={{ '--bubble-color': color, width: size, height: size }} title={`${row.label}: ${formatter(row.value)}`}>
+                  <span className="bubble-rank">{index + 1}</span>
+                  <strong>{formatter(row.value)}</strong>
+                  <span className="bubble-short">{shortName(row.label)}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div className="bubble-legend-list">
+          {rows.slice(0, 9).map((row, index) => {
+            const color = ['#6366f1', '#06b6d4', '#22c55e', '#f59e0b', '#a855f7', '#ec4899'][index % 6]
+            return (
+              <div className="bubble-legend-item" key={`${row.label}-legend`} style={{ '--bubble-color': color }}>
+                <span className="bubble-legend-dot" />
+                <span className="bubble-legend-label">{row.label}</span>
+                <strong>{formatter(row.value)}</strong>
+                {row.count ? <em>{row.count} projects</em> : null}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </article>
   )
@@ -313,7 +336,7 @@ function buildMockProposals(projects) {
   }))
 }
 
-export default function ProjectsFundingAnalyticsPage({ sharedData, filters, updateFilters, refresh, exportCsv, exportXlsx, options }) {
+export default function ProjectsFundingAnalyticsPage({ sharedData, filters, updateFilters, refresh, autoRefreshTick, exportCsv, exportXlsx, options }) {
   const [activeTab, setActiveTab] = useState('Funding Overview')
   const [projectResponse, setProjectResponse] = useState({ items: [], total: 0 })
   const [loading, setLoading] = useState(true)
@@ -341,7 +364,7 @@ export default function ProjectsFundingAnalyticsPage({ sharedData, filters, upda
     return () => {
       ignore = true
     }
-  }, [filters])
+  }, [filters, autoRefreshTick])
 
   function resetFilters() {
     updateFilters({ search: '', school: '', department: '', designation: '', category: '', indexing: '', year: '', page: 1 })

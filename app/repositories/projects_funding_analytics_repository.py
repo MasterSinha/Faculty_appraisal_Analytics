@@ -20,6 +20,15 @@ from app.core.constants import (
 from app.models.schema_reflector import SchemaReflector
 
 
+def is_valid_filter(val: Any) -> bool:
+    if val is None:
+        return False
+    s = str(val).strip().lower()
+    if s in ("", "all", "all schools", "all departments", "all designations", "all categories", "all years", "all indexing", "none", "null"):
+        return False
+    return True
+
+
 def normalize_status(raw_status: Optional[str]) -> str:
     if not raw_status or not str(raw_status).strip():
         return "Unknown"
@@ -123,11 +132,11 @@ class ProjectsFundingAnalyticsRepository:
         if "is_active" in faculty_table.c:
             clauses.append(faculty_table.c.is_active == True)
 
-        if filters.get("school") and f_school in faculty_table.c:
+        if is_valid_filter(filters.get("school")) and f_school in faculty_table.c:
             clauses.append(faculty_table.c[f_school] == filters["school"])
-        if filters.get("department") and f_dept in faculty_table.c:
+        if is_valid_filter(filters.get("department")) and f_dept in faculty_table.c:
             clauses.append(faculty_table.c[f_dept] == filters["department"])
-        if filters.get("designation") and f_desig in faculty_table.c:
+        if is_valid_filter(filters.get("designation")) and f_desig in faculty_table.c:
             clauses.append(faculty_table.c[f_desig] == filters["designation"])
         if filters.get("faculty_email"):
             clauses.append(func.lower(func.trim(faculty_table.c[f_email])) == str(filters["faculty_email"]).lower().strip())
@@ -213,16 +222,16 @@ class ProjectsFundingAnalyticsRepository:
         clauses.append(p_title_col.isnot(None))
         clauses.append(func.trim(p_title_col) != "")
 
-        if filters.get("academic_year") and p_year in target_table.c:
+        if is_valid_filter(filters.get("academic_year")) and p_year in target_table.c:
             clauses.append(func.cast(target_table.c[p_year], text("VARCHAR")) == str(filters["academic_year"]))
 
-        if filters.get("school") and f_school in faculty_table.c:
+        if is_valid_filter(filters.get("school")) and f_school in faculty_table.c:
             clauses.append(faculty_table.c[f_school] == filters["school"])
 
-        if filters.get("department") and f_dept in faculty_table.c:
+        if is_valid_filter(filters.get("department")) and f_dept in faculty_table.c:
             clauses.append(faculty_table.c[f_dept] == filters["department"])
 
-        if filters.get("designation") and f_desig in faculty_table.c:
+        if is_valid_filter(filters.get("designation")) and f_desig in faculty_table.c:
             clauses.append(faculty_table.c[f_desig] == filters["designation"])
 
         if filters.get("faculty_email"):
@@ -332,16 +341,16 @@ class ProjectsFundingAnalyticsRepository:
         clauses.append(pr_title_col.isnot(None))
         clauses.append(func.trim(pr_title_col) != "")
 
-        if filters.get("academic_year") and pr_year in proposals_table.c:
+        if is_valid_filter(filters.get("academic_year")) and pr_year in proposals_table.c:
             clauses.append(func.cast(proposals_table.c[pr_year], text("VARCHAR")) == str(filters["academic_year"]))
 
-        if filters.get("school") and f_school in faculty_table.c:
+        if is_valid_filter(filters.get("school")) and f_school in faculty_table.c:
             clauses.append(faculty_table.c[f_school] == filters["school"])
 
-        if filters.get("department") and f_dept in faculty_table.c:
+        if is_valid_filter(filters.get("department")) and f_dept in faculty_table.c:
             clauses.append(faculty_table.c[f_dept] == filters["department"])
 
-        if filters.get("designation") and f_desig in faculty_table.c:
+        if is_valid_filter(filters.get("designation")) and f_desig in faculty_table.c:
             clauses.append(faculty_table.c[f_desig] == filters["designation"])
 
         if filters.get("faculty_email"):

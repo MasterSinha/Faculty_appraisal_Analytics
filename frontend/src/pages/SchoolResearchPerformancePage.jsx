@@ -224,7 +224,7 @@ function buildMockSchools() {
   })
 }
 
-export default function SchoolResearchPerformancePage({ filters, updateFilters, refresh, exportCsv, exportXlsx, options }) {
+export default function SchoolResearchPerformancePage({ filters, updateFilters, refresh, autoRefreshTick, exportCsv, exportXlsx, options }) {
   const [response, setResponse] = useState({ items: buildMockSchools() })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -251,7 +251,7 @@ export default function SchoolResearchPerformancePage({ filters, updateFilters, 
     return () => {
       ignore = true
     }
-  }, [filters])
+  }, [filters, autoRefreshTick])
 
   function resetFilters() {
     updateFilters({ search: '', school: '', department: '', designation: '', category: '', indexing: '', year: '', page: 1 })

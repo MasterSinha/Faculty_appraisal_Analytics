@@ -1,5 +1,5 @@
 export default function FilterBar({ filters, options, onChange, onReset }) {
-  const schools      = options?.schools              || []
+  const schools      = (options?.schools || []).filter((school) => !['engineering', 'non engineering'].includes(String(school).trim().toLowerCase()))
   const departments  = options?.departments          || []
   const years        = options?.academic_years || options?.years || []
   const designations = options?.designations         || []

@@ -232,7 +232,7 @@ function buildMockIpr(patents) {
   }))
 }
 
-export default function PatentsIprAnalyticsPage({ sharedData, filters, updateFilters, refresh, exportCsv, exportXlsx, options }) {
+export default function PatentsIprAnalyticsPage({ sharedData, filters, updateFilters, refresh, autoRefreshTick, exportCsv, exportXlsx, options }) {
   const [activeTab, setActiveTab] = useState('Patent Overview')
   const [patentResponse, setPatentResponse] = useState({ items: [], total: 0 })
   const [loading, setLoading] = useState(true)
@@ -260,7 +260,7 @@ export default function PatentsIprAnalyticsPage({ sharedData, filters, updateFil
     return () => {
       ignore = true
     }
-  }, [filters])
+  }, [filters, autoRefreshTick])
 
   function resetFilters() {
     updateFilters({ search: '', school: '', department: '', designation: '', category: '', indexing: '', year: '', page: 1 })
