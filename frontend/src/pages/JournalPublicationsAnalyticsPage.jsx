@@ -235,6 +235,12 @@ export default function JournalPublicationsAnalyticsPage({ sharedData, filters, 
     }
   }).sort((a, b) => b.value - a.value)
 
+  const schoolRows = Object.entries(groupBy(publications, (record) => record.school || record.school_name || 'School not specified')).map(([school, rows]) => ({
+    label: school,
+    school,
+    value: rows.length,
+  })).sort((a, b) => b.value - a.value)
+
   const yearRows = Object.entries(groupBy(publications, (record) => record.academic_year)).map(([label, rows]) => ({ label, year: label, total_papers: rows.length, value: rows.length })).sort((a, b) => String(a.label).localeCompare(String(b.label)))
   const indexingRows = Object.entries(groupBy(publications, (record) => record.indexing)).map(([label, rows]) => ({ label, value: rows.length })).sort((a, b) => b.value - a.value)
   const journalRows = Object.entries(groupBy(publications, (record) => record.journal)).map(([label, rows]) => ({ label, value: rows.length })).sort((a, b) => b.value - a.value)
@@ -310,7 +316,7 @@ export default function JournalPublicationsAnalyticsPage({ sharedData, filters, 
 
           {activeTab === 'Overview' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Publications by department" subtitle="Department output" rows={departmentRows} />
+              <MiniBarChart title="Publications by school" subtitle="School output" rows={schoolRows} />
               <MiniBarChart title="Publications by academic year" subtitle="Year trend" rows={yearRows} />
               <MiniBarChart title="Indexing distribution" subtitle="Quality and indexing" rows={indexingRows} />
               <MiniBarChart title="Top journals by paper count" subtitle="Journal concentration" rows={journalRows} />

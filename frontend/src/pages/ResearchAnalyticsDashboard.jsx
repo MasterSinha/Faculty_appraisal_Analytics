@@ -35,6 +35,21 @@ function fmtInr(v) {
 }
 function pct(v) { return `${Number(v || 0).toFixed(1)}%` }
 
+function publicationCount(row) {
+  return Number(
+    row.journal_publications
+    ?? row.total_journal_publications
+    ?? row.total_research_papers
+    ?? row.total_publications
+    ?? row.publication_count
+    ?? row.publications
+    ?? row.total_papers
+    ?? row.papers
+    ?? row.value
+    ?? 0,
+  )
+}
+
 /* ── Alert panel ──────────────────────────────────────── */
 function AlertPanel({ alerts }) {
   if (!alerts.length) return null
@@ -156,14 +171,16 @@ export default function ResearchAnalyticsDashboard() {
     depts.forEach((department) => {
       const school = String(department.school || department.school_name || '').trim()
       if (!school) return
-      schoolMap.set(school, (schoolMap.get(school) || 0) + Number(department.journal_publications || department.total_research_papers || 0))
+      schoolMap.set(school, (schoolMap.get(school) || 0) + publicationCount(department))
     })
 
-    if (!schoolMap.size) {
+    const hasSchoolValues = [...schoolMap.values()].some((value) => Number(value || 0) > 0)
+    if (!schoolMap.size || !hasSchoolValues) {
+      schoolMap.clear()
       ;(data.faculty?.items || []).forEach((faculty) => {
         const school = String(faculty.school || faculty.school_name || '').trim()
         if (!school) return
-        schoolMap.set(school, (schoolMap.get(school) || 0) + Number(faculty.journal_papers || faculty.total_research_papers || faculty.journal_publications || 0))
+        schoolMap.set(school, (schoolMap.get(school) || 0) + publicationCount(faculty))
       })
     }
 
