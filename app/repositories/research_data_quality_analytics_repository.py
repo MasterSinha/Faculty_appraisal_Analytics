@@ -98,18 +98,22 @@ class ResearchDataQualityAnalyticsRepository:
             logging.warning("Core reflection failed for faculty profiles: %s", exc)
 
         try:
-            res = self.db.execute(text("SELECT email, full_name, department, school, is_active FROM faculty_profiles")).mappings().all()
+            res = self.db.execute(text("SELECT * FROM faculty_profiles")).mappings().all()
             profiles = []
             for r in res:
                 p = dict(r)
-                p["email"] = str(p.get("email") or "").lower().strip()
-                p["is_active"] = bool(p.get("is_active", True))
+                p["email"] = str(p.get("email") or p.get("faculty_email") or "").lower().strip()
+                p["full_name"] = str(p.get("full_name") or p.get("name") or p.get("faculty_name") or "Unknown Faculty")
+                p["department"] = str(p.get("department") or "Unassigned")
+                p["school"] = str(p.get("school") or "Unassigned")
+                p["is_active"] = bool(p.get("is_active")) if p.get("is_active") is not None else True
                 profiles.append(p)
             return profiles
         except Exception as exc:
             import logging
             logging.error("Raw fallback query failed for faculty_profiles: %s", exc)
             return []
+
 
     def _get_all_records_raw(self, table: Optional[Table], cat_name: str) -> List[Dict[str, Any]]:
         if table is not None and SchemaReflector.column_names(table):
