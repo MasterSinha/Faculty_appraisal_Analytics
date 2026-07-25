@@ -109,15 +109,15 @@ class FacultyResearchAnalyticsRepository:
                       + COALESCE(SUM(DISTINCT p.score), 0)
                       + COALESCE(SUM(DISTINCT rp.score), 0) AS total_research_score
                 FROM faculty_profiles fp
-                LEFT JOIN journal_publications jp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(jp.faculty_email)) AND fp.academic_year = jp.academic_year
-                LEFT JOIN book_publications bp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(bp.faculty_email)) AND fp.academic_year = bp.academic_year
-                LEFT JOIN patents p ON LOWER(TRIM(fp.email)) = LOWER(TRIM(p.faculty_email)) AND fp.academic_year = p.academic_year
-                LEFT JOIN research_projects rp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rp.faculty_email)) AND fp.academic_year = rp.academic_year
-                LEFT JOIN research_proposals rpr ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rpr.faculty_email)) AND fp.academic_year = rpr.academic_year
-                LEFT JOIN research_guidance rg ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rg.faculty_email)) AND fp.academic_year = rg.academic_year
-                LEFT JOIN conferences c ON LOWER(TRIM(fp.email)) = LOWER(TRIM(c.faculty_email)) AND fp.academic_year = c.academic_year
-                LEFT JOIN awards a ON LOWER(TRIM(fp.email)) = LOWER(TRIM(a.faculty_email)) AND fp.academic_year = a.academic_year
-                LEFT JOIN products_developed pd ON LOWER(TRIM(fp.email)) = LOWER(TRIM(pd.faculty_email)) AND fp.academic_year = pd.academic_year
+                LEFT JOIN journal_publications jp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(jp.faculty_email))
+                LEFT JOIN book_publications bp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(bp.faculty_email))
+                LEFT JOIN patents p ON LOWER(TRIM(fp.email)) = LOWER(TRIM(p.faculty_email))
+                LEFT JOIN research_projects rp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rp.faculty_email))
+                LEFT JOIN research_proposals rpr ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rpr.faculty_email))
+                LEFT JOIN research_guidance rg ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rg.faculty_email))
+                LEFT JOIN conferences c ON LOWER(TRIM(fp.email)) = LOWER(TRIM(c.faculty_email))
+                LEFT JOIN awards a ON LOWER(TRIM(fp.email)) = LOWER(TRIM(a.faculty_email))
+                LEFT JOIN products_developed pd ON LOWER(TRIM(fp.email)) = LOWER(TRIM(pd.faculty_email))
                 WHERE fp.is_active = TRUE {where}
                 GROUP BY fp.school, fp.department
             )
@@ -141,18 +141,19 @@ class FacultyResearchAnalyticsRepository:
                        COUNT(DISTINCT pd.id) FILTER (WHERE NULLIF(TRIM(pd.details), '') IS NOT NULL) AS products_developed,
                        COALESCE(SUM(DISTINCT jp.score), 0) + COALESCE(SUM(DISTINCT bp.score), 0) + COALESCE(SUM(DISTINCT p.score), 0) + COALESCE(SUM(DISTINCT rp.score), 0) AS total_research_score
                 FROM faculty_profiles fp
-                LEFT JOIN journal_publications jp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(jp.faculty_email)) AND fp.academic_year = jp.academic_year
-                LEFT JOIN book_publications bp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(bp.faculty_email)) AND fp.academic_year = bp.academic_year
-                LEFT JOIN patents p ON LOWER(TRIM(fp.email)) = LOWER(TRIM(p.faculty_email)) AND fp.academic_year = p.academic_year
-                LEFT JOIN research_projects rp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rp.faculty_email)) AND fp.academic_year = rp.academic_year
-                LEFT JOIN research_proposals rpr ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rpr.faculty_email)) AND fp.academic_year = rpr.academic_year
-                LEFT JOIN research_guidance rg ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rg.faculty_email)) AND fp.academic_year = rg.academic_year
-                LEFT JOIN conferences c ON LOWER(TRIM(fp.email)) = LOWER(TRIM(c.faculty_email)) AND fp.academic_year = c.academic_year
-                LEFT JOIN awards a ON LOWER(TRIM(fp.email)) = LOWER(TRIM(a.faculty_email)) AND fp.academic_year = a.academic_year
-                LEFT JOIN products_developed pd ON LOWER(TRIM(fp.email)) = LOWER(TRIM(pd.faculty_email)) AND fp.academic_year = pd.academic_year
+                LEFT JOIN journal_publications jp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(jp.faculty_email))
+                LEFT JOIN book_publications bp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(bp.faculty_email))
+                LEFT JOIN patents p ON LOWER(TRIM(fp.email)) = LOWER(TRIM(p.faculty_email))
+                LEFT JOIN research_projects rp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rp.faculty_email))
+                LEFT JOIN research_proposals rpr ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rpr.faculty_email))
+                LEFT JOIN research_guidance rg ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rg.faculty_email))
+                LEFT JOIN conferences c ON LOWER(TRIM(fp.email)) = LOWER(TRIM(c.faculty_email))
+                LEFT JOIN awards a ON LOWER(TRIM(fp.email)) = LOWER(TRIM(a.faculty_email))
+                LEFT JOIN products_developed pd ON LOWER(TRIM(fp.email)) = LOWER(TRIM(pd.faculty_email))
                 WHERE fp.is_active = TRUE {where}
                 GROUP BY fp.email, fp.employee_id, fp.full_name, fp.school, fp.department, fp.designation
             )
+
         """
         return self._paginate(sql, "SELECT *, journal_publications + book_publications + patents + research_projects + proposals + research_guidance + conferences + awards + products_developed AS total_research_contribution_count FROM activity ORDER BY total_research_score DESC", params, page, page_size)
 
