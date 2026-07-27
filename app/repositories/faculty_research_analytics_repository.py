@@ -52,6 +52,7 @@ class FacultyResearchAnalyticsRepository:
         try:
             overview_data = self.overview(filters)
         except Exception as e:
+            self.db.rollback()
             logger.error("Error in overview calculation: %s", e)
             warnings.append(f"overview calculation failed: {str(e)}")
             overview_data = self._empty_overview()
@@ -69,6 +70,7 @@ class FacultyResearchAnalyticsRepository:
                 {"name": "Patents Filed/Granted", "value": overview_data.get("total_patents", 0), "unit": "patents", "change": f"{overview_data.get('patents_granted', 0)} granted"},
             ]
         except Exception as e:
+            self.db.rollback()
             warnings.append(f"kpis calculation failed: {str(e)}")
         timing_breakdown["kpis"] = round((time.time() - t0) * 1000, 1)
 
@@ -78,6 +80,7 @@ class FacultyResearchAnalyticsRepository:
         try:
             trend_data = self._trend_summary(filters)
         except Exception as e:
+            self.db.rollback()
             warnings.append(f"trend calculation failed: {str(e)}")
         timing_breakdown["trend"] = round((time.time() - t0) * 1000, 1)
 
@@ -87,6 +90,7 @@ class FacultyResearchAnalyticsRepository:
         try:
             school_data = self.schools(filters, page=1, page_size=100)["items"]
         except Exception as e:
+            self.db.rollback()
             warnings.append(f"school_summary calculation failed: {str(e)}")
         timing_breakdown["schools"] = round((time.time() - t0) * 1000, 1)
 
@@ -96,6 +100,7 @@ class FacultyResearchAnalyticsRepository:
         try:
             dept_data = self.departments(filters, page=1, page_size=100)["items"]
         except Exception as e:
+            self.db.rollback()
             warnings.append(f"department_summary calculation failed: {str(e)}")
         timing_breakdown["departments"] = round((time.time() - t0) * 1000, 1)
 
@@ -105,6 +110,7 @@ class FacultyResearchAnalyticsRepository:
         try:
             category_data = self._category_summary(filters, overview_data)
         except Exception as e:
+            self.db.rollback()
             warnings.append(f"category_summary calculation failed: {str(e)}")
         timing_breakdown["category"] = round((time.time() - t0) * 1000, 1)
 
@@ -114,6 +120,7 @@ class FacultyResearchAnalyticsRepository:
         try:
             funding_data = self._funding_summary(filters)
         except Exception as e:
+            self.db.rollback()
             warnings.append(f"funding_summary calculation failed: {str(e)}")
         timing_breakdown["funding"] = round((time.time() - t0) * 1000, 1)
 
@@ -123,6 +130,7 @@ class FacultyResearchAnalyticsRepository:
         try:
             patent_data = self._patent_summary(filters)
         except Exception as e:
+            self.db.rollback()
             warnings.append(f"patent_summary calculation failed: {str(e)}")
         timing_breakdown["patent"] = round((time.time() - t0) * 1000, 1)
 
@@ -132,6 +140,7 @@ class FacultyResearchAnalyticsRepository:
         try:
             insights_data = self.insights(filters)
         except Exception as e:
+            self.db.rollback()
             warnings.append(f"insights calculation failed: {str(e)}")
         timing_breakdown["insights"] = round((time.time() - t0) * 1000, 1)
 
@@ -141,6 +150,7 @@ class FacultyResearchAnalyticsRepository:
         try:
             attention_alerts = self._attention_alerts(filters, dept_data, overview_data)
         except Exception as e:
+            self.db.rollback()
             warnings.append(f"attention_alerts calculation failed: {str(e)}")
         timing_breakdown["alerts"] = round((time.time() - t0) * 1000, 1)
 
@@ -150,6 +160,7 @@ class FacultyResearchAnalyticsRepository:
         try:
             filter_options_data = self.filters()
         except Exception as e:
+            self.db.rollback()
             warnings.append(f"filter_options calculation failed: {str(e)}")
         timing_breakdown["filter_options"] = round((time.time() - t0) * 1000, 1)
 
@@ -456,6 +467,7 @@ class FacultyResearchAnalyticsRepository:
             try:
                 res[name] = int(self.db.execute(text(sql_str)).scalar() or 0)
             except Exception:
+                self.db.rollback()
                 res[name] = 0
         return res
 
@@ -502,12 +514,12 @@ class FacultyResearchAnalyticsRepository:
         where, params = self._where(filters, alias="fp")
         sql = text(f"""
             WITH year_union AS (
-                SELECT jp.publication_year::text AS academic_year, 'pub' AS type, 0::numeric AS amount
+                SELECT jp.academic_year::text AS academic_year, 'pub' AS type, 0::numeric AS amount
                 FROM journal_publications jp
                 JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(jp.faculty_email))
                 WHERE fp.is_active = TRUE AND NULLIF(TRIM(jp.title), '') IS NOT NULL {where}
                 UNION ALL
-                SELECT bp.publication_year::text AS academic_year, 'book' AS type, 0::numeric AS amount
+                SELECT bp.academic_year::text AS academic_year, 'book' AS type, 0::numeric AS amount
                 FROM book_publications bp
                 JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(bp.faculty_email))
                 WHERE fp.is_active = TRUE AND COALESCE(NULLIF(TRIM(bp.title), ''), NULLIF(TRIM(bp.book), '')) IS NOT NULL {where}
