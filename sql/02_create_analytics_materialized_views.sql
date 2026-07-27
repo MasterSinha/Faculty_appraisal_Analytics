@@ -118,7 +118,7 @@ product_summary AS (
     LOWER(TRIM(faculty_email)) AS faculty_email,
     COUNT(*) AS total_products
   FROM products_developed
-  WHERE COALESCE(NULLIF(TRIM(title), ''), NULLIF(TRIM(details), '')) IS NOT NULL
+  WHERE NULLIF(TRIM(details), '') IS NOT NULL
   GROUP BY LOWER(TRIM(faculty_email))
 )
 SELECT
