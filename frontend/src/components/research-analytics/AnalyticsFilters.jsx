@@ -1,5 +1,7 @@
+import { normalizeFilterValue } from '../../utils/filterUtils'
+
 export default function AnalyticsFilters({ filters, options, onChange }) {
-  const update = (key, value) => onChange({ [key]: value })
+  const update = (key, value) => onChange({ [key]: normalizeFilterValue(value) })
 
   return (
     <section className="analytics-filters" aria-label="Research analytics filters">
@@ -43,4 +45,3 @@ export default function AnalyticsFilters({ filters, options, onChange }) {
     </section>
   )
 }
-

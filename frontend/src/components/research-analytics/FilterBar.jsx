@@ -1,3 +1,5 @@
+import { normalizeFilterValue } from '../../utils/filterUtils'
+
 export default function FilterBar({ filters, options, onChange, onReset }) {
   const schools      = (options?.schools || []).filter((school) => !['engineering', 'non engineering'].includes(String(school).trim().toLowerCase()))
   const departments  = options?.departments          || []
@@ -6,7 +8,7 @@ export default function FilterBar({ filters, options, onChange, onReset }) {
   const indexingCats = options?.indexing_categories  || []
 
   function handleChange(field, value) {
-    onChange({ [field]: value })
+    onChange({ [field]: normalizeFilterValue(value) })
   }
 
   const activeChips = Object.entries(filters).filter(

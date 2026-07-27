@@ -1,3 +1,5 @@
+import { sanitizeFilters } from '../utils/filterUtils'
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const API_PREFIX = `${API_BASE_URL}/api/v1/analytics/research`
 const REQUEST_TIMEOUT_MS = 15000
@@ -5,14 +7,51 @@ const REQUEST_TIMEOUT_MS = 15000
 function buildUrl(path, params = {}) {
   const base = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
   const url = new URL(`${API_PREFIX}${path}`, base)
+  const cleanParams = sanitizeFilters(params)
 
-  Object.entries(params).forEach(([key, value]) => {
+  Object.entries(cleanParams).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       url.searchParams.set(key === 'year' ? 'academic_year' : key, value)
     }
   })
 
   return url
+}
+
+function normalizeOverview(data = {}) {
+  return {
+    ...data,
+    total_faculty: data.total_active_faculty ?? data.total_faculty ?? 0,
+    faculty_with_research: data.faculty_with_journal_publication ?? data.faculty_with_research ?? 0,
+    total_research_papers: data.total_journal_publications ?? data.total_research_papers ?? 0,
+    total_projects: data.total_research_projects ?? data.total_projects ?? 0,
+    total_patents: data.total_patents ?? 0,
+    total_books: data.total_book_publications ?? data.total_books ?? 0,
+    total_conferences: data.total_conferences ?? 0,
+    total_funding: data.total_sanctioned_funding ?? data.total_funding ?? 0,
+    total_vc_score: data.total_research_score || 0,
+  }
+}
+
+function mapFacultyPage(data = {}) {
+  return {
+    ...data,
+    items: (data.items || data.faculty || []).map((item) => ({
+      ...item,
+      faculty_id: item.faculty_email || item.email || item.faculty_id,
+      faculty_name: item.full_name || item.faculty_name,
+      total_research_papers: item.journal_publications ?? item.total_research_papers ?? 0,
+      book_publications: item.book_publications ?? item.books ?? 0,
+      conference_publications: item.conferences ?? item.conference_publications ?? 0,
+      research_projects: item.research_projects ?? item.projects ?? 0,
+      total_funding: item.project_funding ?? item.total_funding ?? item.funding ?? 0,
+      total_vc_score: item.total_research_score ?? item.total_vc_score ?? 0,
+    })),
+    page: data.page || 1,
+    page_size: data.page_size || 10,
+    total: data.total || (data.items || data.faculty || []).length,
+    total_pages: data.total_pages || 1,
+  }
 }
 
 function authHeaders() {
@@ -53,20 +92,49 @@ async function request(path, params = {}, options = {}) {
 }
 
 export const researchAnalyticsApi = {
+  dashboard: async (params = {}) => {
+    const data = await request('/dashboard', params)
+    const overview = normalizeOverview(data.overview || data)
+    const categorySummary = data.category_summary || data.categories || []
+
+    return {
+      raw: data,
+      overview,
+      kpis: data.kpis || [],
+      indexing: categorySummary.map((item) => ({
+        indexing: item.category || item.indexing || item.label || item.name,
+        total_papers: item.total_papers ?? item.total ?? item.value ?? item.count ?? 0,
+        total_faculty: item.total_faculty ?? item.faculty_count ?? 0,
+        vc_score: item.vc_score ?? 0,
+      })),
+      faculty: mapFacultyPage(data.faculty_summary || data.faculty || {}),
+      trend: (data.trend || data.yearly_trend || []).map((item) => ({
+        ...item,
+        year: item.year || item.academic_year,
+        total_papers: item.total_papers ?? item.journal_publications ?? item.total ?? item.value ?? 0,
+      })),
+      projects: data.funding_summary || [],
+      scores: data.scores || null,
+      topFaculty: data.top_faculty || [],
+      topJournals: data.top_journals || [],
+      departments: {
+        items: data.department_summary || [],
+        page: 1,
+        page_size: 100,
+        total: (data.department_summary || []).length,
+        total_pages: 1,
+      },
+      schoolSummary: data.school_summary || [],
+      insights: data.insights || [],
+      attentionAlerts: data.attention_alerts || [],
+      dataQuality: data.data_quality || {},
+      filterOptions: data.filter_options || null,
+      meta: data.meta || {},
+    }
+  },
   overview: async (params = {}) => {
     const data = await request('/overview', params)
-    return {
-      ...data,
-      total_faculty: data.total_active_faculty,
-      faculty_with_research: data.faculty_with_journal_publication,
-      total_research_papers: data.total_journal_publications,
-      total_projects: data.total_research_projects,
-      total_patents: data.total_patents,
-      total_books: data.total_book_publications,
-      total_conferences: data.total_conferences,
-      total_funding: data.total_sanctioned_funding,
-      total_vc_score: data.total_research_score || 0,
-    }
+    return normalizeOverview(data)
   },
   indexing: async (params = {}) => {
     const overview = await request('/overview', params)
@@ -81,20 +149,7 @@ export const researchAnalyticsApi = {
   },
   faculty: async (params) => {
     const data = await request('/faculty', params)
-    return {
-      ...data,
-      items: (data.items || []).map((item) => ({
-        ...item,
-        faculty_id: item.faculty_email,
-        faculty_name: item.full_name,
-        total_research_papers: item.journal_publications,
-        book_publications: item.book_publications,
-        conference_publications: item.conferences,
-        research_projects: item.research_projects,
-        total_funding: item.project_funding,
-        total_vc_score: item.total_research_score,
-      })),
-    }
+    return mapFacultyPage(data)
   },
   facultyDetail: async (facultyEmail) => {
     const data = await request(`/faculty/${encodeURIComponent(facultyEmail)}`)

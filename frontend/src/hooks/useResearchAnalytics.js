@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { researchAnalyticsApi } from '../services/researchAnalyticsApi'
 import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
+import { sanitizeFilters } from '../utils/filterUtils'
 
 const initialFilters = {
   page: 1,
@@ -147,15 +148,21 @@ export function useResearchAnalytics() {
     topJournals: [],
     departments: emptyDepartments(),
     insights: [],
+    attentionAlerts: [],
     dataQuality: {},
     filterOptions: null,
+    schoolSummary: [],
+    meta: {},
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [demoMode, setDemoMode] = useState(false)
 
   const updateFilters = useCallback((nextFilters) => {
-    setFilters((current) => ({ ...current, ...nextFilters, page: nextFilters.page || 1 }))
+    setFilters((current) => {
+      const nextCleanFilters = sanitizeFilters(nextFilters)
+      return { ...current, ...nextCleanFilters, page: nextFilters.page || 1 }
+    })
   }, [])
 
   const refresh = useCallback(async () => {
@@ -163,10 +170,41 @@ export function useResearchAnalytics() {
     setDemoMode(false)
 
     try {
+      const cleanFilters = sanitizeFilters(filters)
+
+      try {
+        const dashboard = await researchAnalyticsApi.dashboard(cleanFilters)
+        setData((current) => ({
+          ...current,
+          overview: dashboard.overview || mockResearchAnalytics.overview,
+          indexing: dashboard.indexing?.length ? dashboard.indexing : indexingFromOverview(dashboard.overview),
+          faculty: dashboard.faculty?.items?.length ? dashboard.faculty : current.faculty,
+          trend: dashboard.trend || [],
+          projects: dashboard.projects || [],
+          scores: dashboard.scores || current.scores || mockResearchAnalytics.scores,
+          topFaculty: dashboard.topFaculty || [],
+          topJournals: dashboard.topJournals || [],
+          departments: dashboard.departments || emptyDepartments(),
+          schoolSummary: dashboard.schoolSummary || [],
+          insights: dashboard.insights || [],
+          attentionAlerts: dashboard.attentionAlerts || [],
+          dataQuality: dashboard.dataQuality || {},
+          filterOptions: dashboard.filterOptions || current.filterOptions || emptyFilterOptions(),
+          meta: dashboard.meta || {},
+        }))
+        setLoading(false)
+        setDemoMode(false)
+        return
+      } catch (dashboardError) {
+        if (!String(dashboardError.message || '').includes('[HTTP 404]')) {
+          setError(`Dashboard summary unavailable, loading live sections separately. ${dashboardError.message}`)
+        }
+      }
+
       const coreResults = await Promise.allSettled([
-        researchAnalyticsApi.overview(filters),
-        researchAnalyticsApi.faculty(filters),
-        researchAnalyticsApi.trend(filters),
+        researchAnalyticsApi.overview(cleanFilters),
+        researchAnalyticsApi.faculty(cleanFilters),
+        researchAnalyticsApi.trend(cleanFilters),
       ])
 
       const [overviewRes, facultyRes, trendRes] = coreResults
@@ -190,15 +228,15 @@ export function useResearchAnalytics() {
         setDemoMode(false)
 
         const secondaryResults = await Promise.allSettled([
-          researchAnalyticsApi.indexing(filters),
-          researchAnalyticsApi.projects(filters),
-          researchAnalyticsApi.scores(filters),
-          researchAnalyticsApi.topFaculty(10, filters),
+          researchAnalyticsApi.indexing(cleanFilters),
+          researchAnalyticsApi.projects(cleanFilters),
+          researchAnalyticsApi.scores(cleanFilters),
+          researchAnalyticsApi.topFaculty(10, cleanFilters),
           researchAnalyticsApi.topJournals(10),
           researchAnalyticsApi.filters(),
-          researchAnalyticsApi.departments(filters),
-          researchAnalyticsApi.insights(filters),
-          researchAnalyticsApi.dataQuality(filters),
+          researchAnalyticsApi.departments(cleanFilters),
+          researchAnalyticsApi.insights(cleanFilters),
+          researchAnalyticsApi.dataQuality(cleanFilters),
         ])
 
         const [indexingRes, projectsRes, scoresRes, topFacultyRes, topJournalsRes, filterOptionsRes, departmentsRes, insightsRes, dataQualityRes] = secondaryResults
@@ -230,14 +268,14 @@ export function useResearchAnalytics() {
           setError(`Live data loaded partially. ${firstFailureMessage([...coreResults, ...secondaryResults])}`)
         }
       } else {
-        setData(buildFilteredMock(filters))
+        setData(buildFilteredMock(cleanFilters))
         setDemoMode(true)
         const firstErr = firstFailureMessage(coreResults) || 'Unable to connect to live API.'
         setError(`${firstErr} Showing demo fallback until FastAPI is connected.`)
         setLoading(false)
       }
     } catch (requestError) {
-      setData(buildFilteredMock(filters))
+      setData(buildFilteredMock(sanitizeFilters(filters)))
       setDemoMode(true)
       setError(`${requestError.message} Showing demo data.`)
       setLoading(false)
@@ -253,11 +291,11 @@ export function useResearchAnalytics() {
   }, [refresh])
 
   const exportCsv = useCallback(() => {
-    window.location.href = researchAnalyticsApi.exportUrl({ ...filters, format: 'csv' })
+    window.location.href = researchAnalyticsApi.exportUrl({ ...sanitizeFilters(filters), format: 'csv' })
   }, [filters])
 
   const exportXlsx = useCallback(() => {
-    window.location.href = researchAnalyticsApi.exportUrl({ ...filters, format: 'xlsx' })
+    window.location.href = researchAnalyticsApi.exportUrl({ ...sanitizeFilters(filters), format: 'xlsx' })
   }, [filters])
 
   return useMemo(
