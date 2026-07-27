@@ -210,10 +210,46 @@ class FacultyResearchAnalyticsRepository:
         return response
 
     # -------------------------------------------------------------------------
-    # 2. DETAILED ENDPOINTS & REPOSITORIES (SQL AGGREGATIONS & INDEX-FRIENDLY)
+    # 2. DETAILED ENDPOINTS & REPOSITORIES (SQL AGGREGATIONS & MV LOOKUPS)
     # -------------------------------------------------------------------------
     def overview(self, filters: dict[str, Any]) -> dict[str, Any]:
-        """Pre-aggregated overview calculation using SQL CTE."""
+        """Overview calculation with Materialized View acceleration."""
+        if not any(filters.values()):
+            try:
+                mv_row = self.db.execute(text("""
+                    SELECT 
+                        COUNT(*) AS total_active_faculty,
+                        SUM(total_journals) AS total_journal_publications,
+                        COUNT(DISTINCT CASE WHEN total_journals > 0 THEN faculty_email END) AS faculty_with_journal_publication,
+                        SUM(total_books) AS total_book_publications,
+                        COUNT(DISTINCT CASE WHEN total_books > 0 THEN faculty_email END) AS faculty_with_book_publication,
+                        SUM(total_patents) AS total_patents,
+                        SUM(patents_granted) AS patents_granted,
+                        SUM(total_projects) AS total_research_projects,
+                        SUM(total_funding) AS total_sanctioned_funding,
+                        SUM(external_projects) AS external_funded_projects,
+                        SUM(external_funding) AS external_funded_amount,
+                        SUM(total_proposals) AS total_research_proposals,
+                        SUM(total_proposal_amount) AS total_proposal_amount,
+                        SUM(total_scholars_guided) AS total_research_scholars_guided,
+                        SUM(total_conferences) AS total_conferences,
+                        SUM(total_awards) AS total_awards,
+                        SUM(total_products) AS total_products_developed
+                    FROM mv_research_faculty_summary
+                """)).mappings().first()
+                if mv_row and mv_row["total_active_faculty"]:
+                    row = dict(mv_row)
+                    total_active = row["total_active_faculty"] or 0
+                    publishing = row["faculty_with_journal_publication"] or 0
+                    journals = row["total_journal_publications"] or 0
+                    funding = float(row["total_sanctioned_funding"] or 0)
+                    row["publication_participation_rate"] = round((publishing / total_active) * 100, 2) if total_active else 0
+                    row["average_publications_per_publishing_faculty"] = round(journals / publishing, 2) if publishing else 0
+                    row["funding_per_active_faculty"] = round(funding / total_active, 2) if total_active else 0
+                    return row
+            except Exception:
+                self.db.rollback()
+
         where, params = self._where(filters, alias="fp")
         sql = text(f"""
             WITH active_faculty AS (
@@ -287,7 +323,14 @@ class FacultyResearchAnalyticsRepository:
         return row
 
     def departments(self, filters: dict[str, Any], page: int, page_size: int) -> dict[str, Any]:
-        """Department summary using GROUP BY."""
+        """Department summary with MV acceleration."""
+        if not any(filters.values()):
+            try:
+                base_mv = "SELECT * FROM mv_research_department_summary"
+                return self._paginate(base_mv, "SELECT *, ROUND((research_active_faculty::numeric / NULLIF(total_active_faculty, 0)) * 100, 2) AS publication_participation_percentage FROM summary ORDER BY journal_publications DESC", {}, page, page_size)
+            except Exception:
+                self.db.rollback()
+
         where, params = self._where(filters)
         base = f"""
             WITH summary AS (
@@ -330,7 +373,14 @@ class FacultyResearchAnalyticsRepository:
         return self._paginate(base, "SELECT *, ROUND((faculty_who_published_papers::numeric / NULLIF(total_active_faculty, 0)) * 100, 2) AS publication_participation_percentage FROM summary ORDER BY journal_publications DESC", params, page, page_size)
 
     def schools(self, filters: dict[str, Any], page: int, page_size: int) -> dict[str, Any]:
-        """School summary using GROUP BY."""
+        """School summary with MV acceleration."""
+        if not any(filters.values()):
+            try:
+                base_mv = "SELECT * FROM mv_research_school_summary"
+                return self._paginate(base_mv, "SELECT * FROM summary ORDER BY journal_publications DESC", {}, page, page_size)
+            except Exception:
+                self.db.rollback()
+
         where, params = self._where(filters)
         base = f"""
             WITH summary AS (
@@ -488,11 +538,38 @@ class FacultyResearchAnalyticsRepository:
         return insights_list
 
     def filters(self) -> dict[str, Any]:
-        """Available filter options cached for 300s."""
+        """Available filter options cached for 300s with MV acceleration."""
         cache_key = "analytics:filter_options"
         is_hit, cached_val = get_cache(cache_key)
         if is_hit and cached_val:
             return cached_val
+
+        # Try fast read from Materialized View
+        try:
+            mv_options = self.db.execute(text("""
+                SELECT 
+                    academic_years,
+                    schools,
+                    departments,
+                    designations,
+                    indexing_options AS indexing
+                FROM mv_research_filter_options
+            """)).mappings().first()
+            if mv_options:
+                options = {
+                    "academic_years": list(mv_options["academic_years"] or []),
+                    "schools": list(mv_options["schools"] or []),
+                    "departments": list(mv_options["departments"] or []),
+                    "designations": list(mv_options["designations"] or []),
+                    "indexing": list(mv_options["indexing"] or []),
+                    "patent_statuses": self._distinct("patents", "patent_status"),
+                    "project_statuses": self._distinct("research_projects", "project_status"),
+                    "funding_agencies": self._distinct("research_projects", "agency"),
+                }
+                set_cache(cache_key, options, ttl_seconds=300)
+                return options
+        except Exception:
+            self.db.rollback()
 
         options = {
             "academic_years": self._distinct("faculty_profiles", "academic_year"),
@@ -511,6 +588,14 @@ class FacultyResearchAnalyticsRepository:
     # PRIVATE HELPER QUERIES & SUB-CALCULATIONS
     # -------------------------------------------------------------------------
     def _trend_summary(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
+        if not any(filters.values()):
+            try:
+                mv_rows = self.db.execute(text("SELECT * FROM mv_research_yearly_trend ORDER BY academic_year ASC")).mappings().all()
+                if mv_rows:
+                    return [dict(row) for row in mv_rows]
+            except Exception:
+                self.db.rollback()
+
         where, params = self._where(filters, alias="fp")
         sql = text(f"""
             WITH year_union AS (
