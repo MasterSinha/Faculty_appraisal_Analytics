@@ -19,6 +19,18 @@ from app.utils.export_utils import rows_to_csv
 router = APIRouter(prefix="/api/v1/analytics/research", tags=["Faculty Research Analytics"])
 
 
+def sanitize_filter_value(val: Optional[str]) -> Optional[str]:
+    """Sanitize filter inputs so 'All Schools', 'All Departments', etc. map to None (no filter)."""
+    if not val:
+        return None
+    v = str(val).strip()
+    if v.lower() in ("all", "all schools", "all departments", "all designations", "all years", "all categories", "all indexing", "none", "null", ""):
+        return None
+    if v.lower().startswith("all "):
+        return None
+    return v
+
+
 def query_filters(
     academic_year: Optional[str] = Query(None, description="Academic year filter"),
     school: Optional[str] = Query(None, description="School filter"),
@@ -36,21 +48,21 @@ def query_filters(
     date_to: Optional[str] = Query(None, description="Date to"),
 ) -> dict[str, Any]:
     return {
-        "academic_year": academic_year,
-        "school": school,
-        "department": department,
-        "designation": designation,
-        "faculty_email": faculty,
-        "faculty": faculty,
-        "category": category,
-        "indexing": indexing,
-        "status": status,
-        "agency": agency,
-        "search": search,
-        "sort_by": sort_by,
+        "academic_year": sanitize_filter_value(academic_year),
+        "school": sanitize_filter_value(school),
+        "department": sanitize_filter_value(department),
+        "designation": sanitize_filter_value(designation),
+        "faculty_email": sanitize_filter_value(faculty),
+        "faculty": sanitize_filter_value(faculty),
+        "category": sanitize_filter_value(category),
+        "indexing": sanitize_filter_value(indexing),
+        "status": sanitize_filter_value(status),
+        "agency": sanitize_filter_value(agency),
+        "search": sanitize_filter_value(search),
+        "sort_by": sanitize_filter_value(sort_by),
         "sort_order": sort_order,
-        "date_from": date_from,
-        "date_to": date_to,
+        "date_from": sanitize_filter_value(date_from),
+        "date_to": sanitize_filter_value(date_to),
     }
 
 

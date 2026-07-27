@@ -42,7 +42,11 @@ class FacultyResearchAnalyticsRepository:
     def _has_active_filters(self, filters: dict[str, Any]) -> bool:
         """Check if any row-filtering parameter is specified."""
         filter_keys = ("academic_year", "school", "department", "designation", "faculty_email", "category", "indexing", "status", "agency", "search")
-        return any(filters.get(k) for k in filter_keys)
+        for k in filter_keys:
+            val = filters.get(k)
+            if val and str(val).strip().lower() not in ("all", "all schools", "all departments", "all designations", "all years", "all categories", "all indexing", "none", "null", "") and not str(val).strip().lower().startswith("all "):
+                return True
+        return False
 
     # -------------------------------------------------------------------------
     # 1. DASHBOARD SUMMARY ENDPOINT IMPLEMENTATION
@@ -778,12 +782,15 @@ class FacultyResearchAnalyticsRepository:
         clauses = []
         params: dict[str, Any] = {}
         for key in ("academic_year", "school", "department", "designation"):
-            if filters.get(key):
+            val = filters.get(key)
+            if val and str(val).strip().lower() not in ("all", "all schools", "all departments", "all designations", "all years", "all categories", "all indexing", "none", "null", "") and not str(val).strip().lower().startswith("all "):
                 clauses.append(f"AND {alias}.{key} = :{key}")
-                params[key] = filters[key]
+                params[key] = val
         if filters.get("faculty_email"):
-            clauses.append(f"AND LOWER(TRIM({alias}.email)) = LOWER(TRIM(:faculty_email))")
-            params["faculty_email"] = filters["faculty_email"]
+            email_val = filters["faculty_email"]
+            if email_val and str(email_val).strip().lower() not in ("all", "none", "null", ""):
+                clauses.append(f"AND LOWER(TRIM({alias}.email)) = LOWER(TRIM(:faculty_email))")
+                params["faculty_email"] = email_val
         return " ".join(clauses), params
 
     def _distinct(self, table: str, column: str) -> list[Any]:

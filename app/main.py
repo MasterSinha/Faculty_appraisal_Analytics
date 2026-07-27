@@ -1,14 +1,20 @@
+import asyncio
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.endpoints.faculty_research_analytics import router as faculty_research_analytics_router
 from app.api.v1.router import analytics_v1_router, api_v1_router
 from app.core.config import get_settings
+from app.database import SessionLocal
+from app.repositories.faculty_research_analytics_repository import FacultyResearchAnalyticsRepository
 
+logger = logging.getLogger("analytics.main")
 settings = get_settings()
 
 app = FastAPI(
@@ -19,6 +25,10 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+# 1. GZip Compression Middleware (Compresses ~40KB JSON down to ~3KB over network)
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+# 2. CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -30,6 +40,27 @@ app.add_middleware(
 app.include_router(api_v1_router)
 app.include_router(analytics_v1_router)
 app.include_router(faculty_research_analytics_router)
+
+
+# 3. Server Startup Event: Background Pre-Warming of Cache
+@app.on_event("startup")
+def prewarm_analytics_cache():
+    """Background startup task to pre-warm dashboard cache so users get instant sub-5ms load times."""
+    def _warm():
+        try:
+            db = SessionLocal()
+            try:
+                repo = FacultyResearchAnalyticsRepository(db)
+                repo.dashboard_summary({}, refresh=True)
+                repo.filters()
+                logger.info("[startup] Successfully pre-warmed dashboard & filters cache!")
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning("[startup] Cache pre-warming warning: %s", e)
+
+    # Run in background thread so server start is non-blocking
+    asyncio.get_event_loop().run_in_executor(None, _warm)
 
 
 @app.get("/health", tags=["Health"])
