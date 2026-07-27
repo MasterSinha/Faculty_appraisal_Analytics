@@ -43,11 +43,16 @@ project_summary AS (
     SUM(CASE WHEN external_project = TRUE THEN COALESCE(amount, 0) ELSE 0 END) AS external_funding,
     SUM(COALESCE(score, 0)) AS project_score
   FROM (
-    SELECT faculty_email, title, amount, score, FALSE AS external_project FROM research_projects
+    SELECT faculty_email, title, amount, score, project_status, FALSE AS external_project FROM research_projects
     UNION ALL
-    SELECT faculty_email, title, amount, score, TRUE AS external_project FROM external_research_projects
+    SELECT faculty_email, title, amount, 0::numeric AS score, project_status, TRUE AS external_project FROM external_research_projects
   ) p
   WHERE NULLIF(TRIM(title), '') IS NOT NULL
+    AND (
+      COALESCE(TRIM(project_status), '') = ''
+      OR LOWER(COALESCE(project_status, '')) SIMILAR TO '%(sanction|ongoing|complete|closed|approved)%'
+    )
+    AND LOWER(COALESCE(project_status, '')) NOT IN ('proposed', 'submitted', 'rejected', 'unknown')
   GROUP BY LOWER(TRIM(faculty_email))
 ),
 proposal_summary AS (
@@ -186,9 +191,9 @@ WITH year_union AS (
   UNION ALL
   SELECT academic_year::text AS academic_year, 'patent' AS type, 0::numeric AS amount FROM patents WHERE NULLIF(TRIM(title), '') IS NOT NULL
   UNION ALL
-  SELECT academic_year::text AS academic_year, 'proj' AS type, COALESCE(amount, 0) AS amount FROM research_projects WHERE NULLIF(TRIM(title), '') IS NOT NULL
+  SELECT academic_year::text AS academic_year, 'proj' AS type, COALESCE(amount, 0) AS amount FROM research_projects WHERE NULLIF(TRIM(title), '') IS NOT NULL AND (COALESCE(TRIM(project_status), '') = '' OR LOWER(COALESCE(project_status, '')) SIMILAR TO '%(sanction|ongoing|complete|closed|approved)%') AND LOWER(COALESCE(project_status, '')) NOT IN ('proposed', 'submitted', 'rejected', 'unknown')
   UNION ALL
-  SELECT academic_year::text AS academic_year, 'proj' AS type, COALESCE(amount, 0) AS amount FROM external_research_projects WHERE NULLIF(TRIM(title), '') IS NOT NULL
+  SELECT academic_year::text AS academic_year, 'proj' AS type, COALESCE(amount, 0) AS amount FROM external_research_projects WHERE NULLIF(TRIM(title), '') IS NOT NULL AND (COALESCE(TRIM(project_status), '') = '' OR LOWER(COALESCE(project_status, '')) SIMILAR TO '%(sanction|ongoing|complete|closed|approved)%') AND LOWER(COALESCE(project_status, '')) NOT IN ('proposed', 'submitted', 'rejected', 'unknown')
 )
 SELECT
   academic_year,

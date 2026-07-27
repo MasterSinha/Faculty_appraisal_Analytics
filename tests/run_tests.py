@@ -72,6 +72,7 @@ class TestBackendArchitecture(unittest.TestCase):
             Column("title", String),
             Column("project_title", String),
             Column("project_status", String),
+            Column("role", String),
             Column("agency", String),
             Column("funding_agency", String),
             Column("amount", Float),
@@ -231,6 +232,7 @@ class TestBackendArchitecture(unittest.TestCase):
             ],
         )
 
+        # Primary PI Project for Alice (Engineering)
         cls.session.execute(
             projects.insert(),
             [
@@ -240,6 +242,7 @@ class TestBackendArchitecture(unittest.TestCase):
                     "title": "Quantum AI Systems",
                     "project_title": "Quantum AI Systems",
                     "project_status": "Ongoing",
+                    "role": "Principal Investigator",
                     "agency": "DST",
                     "funding_agency": "DST",
                     "amount": 750000.0,
@@ -247,7 +250,23 @@ class TestBackendArchitecture(unittest.TestCase):
                     "academic_year": "2023-24",
                     "score": 15.0,
                     "vc_score": 15.0,
-                }
+                },
+                # Co-PI record for same project under Bob (Sciences) - should be deduplicated to PI Alice
+                {
+                    "id": 2,
+                    "faculty_email": "bob@university.edu",
+                    "title": "Quantum AI Systems",
+                    "project_title": "Quantum AI Systems",
+                    "project_status": "Ongoing",
+                    "role": "Co-Investigator",
+                    "agency": "DST",
+                    "funding_agency": "DST",
+                    "amount": 750000.0,
+                    "project_type": "External",
+                    "academic_year": "2023-24",
+                    "score": 5.0,
+                    "vc_score": 5.0,
+                },
             ],
         )
 
@@ -359,23 +378,32 @@ class TestBackendArchitecture(unittest.TestCase):
             self.assertTrue(dbg["is_consistent"])
             self.assertTrue(dbg["dashboard_matches_detail"])
 
-    def test_dashboard_overview_funding_and_proposals(self):
+    def test_dashboard_overview_primary_owner_deduplication(self):
         clear_cache()
         dash = self.faculty_repo.dashboard_summary({}, refresh=True, debug=True)
         overview = dash["overview"]
 
-        # Sanctioned funding must equal 750,000 (research project) and NOT include 5,000,000 proposal
+        # 1. Total sanctioned funding must be 750,000 (deduplicated PI project) and exclude proposal (5,000,000)
         self.assertEqual(overview["total_sanctioned_funding"], 750000.0)
         self.assertEqual(overview["total_proposal_amount"], 5000000.0)
-        self.assertEqual(overview["total_research_projects"], 1)
-        self.assertEqual(overview["total_research_proposals"], 1)
 
-        # Debug block in meta
-        self.assertIn("debug_overview_totals", dash["meta"])
+        # 2. Deduped project count must be 1 (not 2 because co-PI duplicate was removed)
+        self.assertEqual(overview["total_research_projects"], 1)
+
+        # 3. Primary owner PI belongs to "School of Engineering"
+        eng_overview = self.faculty_repo.overview({"school": "School of Engineering"})
+        sci_overview = self.faculty_repo.overview({"school": "School of Sciences"})
+
+        self.assertEqual(eng_overview["total_sanctioned_funding"], 750000.0)
+        self.assertEqual(sci_overview["total_sanctioned_funding"], 0.0)
+
+        # 4. Debug meta verification
         debug_totals = dash["meta"]["debug_overview_totals"]
-        self.assertEqual(debug_totals["dashboard_total_sanctioned_funding"], 750000.0)
-        self.assertEqual(debug_totals["proposal_amount_excluded"], 5000000.0)
-        self.assertTrue(debug_totals["funding_status_filter_applied"])
+        self.assertEqual(debug_totals["funding_attribution_rule"], "primary_owner_deduplicated")
+        self.assertEqual(debug_totals["all_schools_funding"], 750000.0)
+        self.assertEqual(debug_totals["sum_of_school_funding"], 750000.0)
+        self.assertTrue(debug_totals["funding_is_additive"])
+        self.assertEqual(debug_totals["difference"], 0.0)
 
 
 if __name__ == "__main__":

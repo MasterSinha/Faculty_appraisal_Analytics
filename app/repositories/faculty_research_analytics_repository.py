@@ -53,6 +53,20 @@ def valid_condition_for_table(table_alias: str, table_name: str) -> str:
     return "1=1"
 
 
+def sanctioned_project_condition(alias: str = "t") -> str:
+    """SQL condition filtering sanctioned/funded research projects (PostgreSQL & SQLite compatible)."""
+    return f"""(
+        COALESCE(TRIM({alias}.project_status), '') = ''
+        OR LOWER(COALESCE({alias}.project_status, '')) LIKE '%sanction%'
+        OR LOWER(COALESCE({alias}.project_status, '')) LIKE '%ongoing%'
+        OR LOWER(COALESCE({alias}.project_status, '')) LIKE '%complete%'
+        OR LOWER(COALESCE({alias}.project_status, '')) LIKE '%closed%'
+        OR LOWER(COALESCE({alias}.project_status, '')) LIKE '%approved%'
+        OR LOWER(COALESCE({alias}.project_status, '')) LIKE '%grant%'
+        OR LOWER(COALESCE({alias}.project_status, '')) LIKE '%active%'
+    ) AND LOWER(COALESCE({alias}.project_status, '')) NOT IN ('proposed', 'submitted', 'rejected', 'unknown', 'draft')"""
+
+
 class FacultyResearchAnalyticsRepository:
     def __init__(self, db: Session):
         self.db = db
@@ -280,41 +294,89 @@ class FacultyResearchAnalyticsRepository:
             },
         }
 
-        # 12. Optional Debug Overview Verification Totals
+        # 12. Debug Overview Verification Totals
         if debug:
             try:
-                where_fp, params_fp = self._where(filters, alias="fp")
-                where_rp, params_rp = self._where(filters, alias="fp", activity_alias="rp")
-                where_erp, params_erp = self._where(filters, alias="fp", activity_alias="erp")
-                where_rpr, params_rpr = self._where(filters, alias="fp", activity_alias="rpr")
+                all_schools_overview = self.overview({})
+                all_schools_funding = all_schools_overview.get("total_sanctioned_funding", 0.0)
 
-                raw_rp_funding = float(self.db.execute(text(f"""
-                    SELECT COALESCE(SUM(rp.amount), 0)
-                    FROM research_projects rp
-                    JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rp.faculty_email))
-                    WHERE fp.is_active = TRUE AND NULLIF(TRIM(rp.title), '') IS NOT NULL {where_rp}
-                """), params_rp).scalar() or 0.0)
+                rp_cols = self._get_table_columns("research_projects")
+                erp_cols = self._get_table_columns("external_research_projects")
 
-                raw_erp_funding = float(self.db.execute(text(f"""
-                    SELECT COALESCE(SUM(erp.amount), 0)
-                    FROM external_research_projects erp
-                    JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(erp.faculty_email))
-                    WHERE fp.is_active = TRUE AND NULLIF(TRIM(erp.title), '') IS NOT NULL {where_erp}
-                """), params_erp).scalar() or 0.0)
+                rp_role = f"rp.{'role' if 'role' in rp_cols else ('project_role' if 'project_role' in rp_cols else 'role')}" if ("role" in rp_cols or "project_role" in rp_cols) else "''"
+                rp_sdate = "rp.created_at" if "created_at" in rp_cols else "NULL"
 
-                raw_proposal_funding = float(self.db.execute(text(f"""
+                erp_role = f"erp.{'role' if 'role' in erp_cols else ('project_role' if 'project_role' in erp_cols else 'role')}" if ("role" in erp_cols or "project_role" in erp_cols) else "''"
+                erp_sdate = "erp.created_at" if "created_at" in erp_cols else "NULL"
+
+                rp_key_candidates = [f"NULLIF(TRIM(rp.{c}), '')" for c in ("sanction_order_number", "sanction_number", "file_number", "file_no", "project_code", "project_id") if c in rp_cols]
+                rp_fallback = "LOWER(TRIM(rp.title)) || '|' || COALESCE(rp.amount, 0) || '|' || LOWER(TRIM(COALESCE(rp.agency, '')))"
+                rp_key = f"COALESCE({', '.join(rp_key_candidates)}, {rp_fallback})" if rp_key_candidates else rp_fallback
+
+                erp_key_candidates = [f"NULLIF(TRIM(erp.{c}), '')" for c in ("sanction_order_number", "sanction_number", "file_number", "file_no", "project_code", "project_id") if c in erp_cols]
+                erp_fallback = "LOWER(TRIM(erp.title)) || '|' || COALESCE(erp.amount, 0) || '|' || LOWER(TRIM(COALESCE(erp.agency, '')))"
+                erp_key = f"COALESCE({', '.join(erp_key_candidates)}, {erp_fallback})" if erp_key_candidates else erp_fallback
+
+                school_funding_sql = text(f"""
+                    WITH unified_projects AS (
+                      SELECT 'research_projects' AS source_table, rp.id, rp.faculty_email, rp.title, COALESCE(rp.amount, 0) AS amount,
+                             rp.project_status, {rp_role} AS role, {rp_sdate} AS sanction_date, {rp_sdate} AS created_at, {rp_key} AS project_key
+                      FROM research_projects rp
+                      JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rp.faculty_email))
+                      WHERE fp.is_active = TRUE AND NULLIF(TRIM(rp.title), '') IS NOT NULL AND {sanctioned_project_condition("rp")}
+                      UNION ALL
+                      SELECT 'external_research_projects' AS source_table, erp.id, erp.faculty_email, erp.title, COALESCE(erp.amount, 0) AS amount,
+                             erp.project_status, {erp_role} AS role, {erp_sdate} AS sanction_date, {erp_sdate} AS created_at, {erp_key} AS project_key
+                      FROM external_research_projects erp
+                      JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(erp.faculty_email))
+                      WHERE fp.is_active = TRUE AND NULLIF(TRIM(erp.title), '') IS NOT NULL AND {sanctioned_project_condition("erp")}
+                    ),
+                    project_with_faculty AS (
+                      SELECT up.*, COALESCE(NULLIF(TRIM(fp.school), ''), 'Unassigned') AS school,
+                        CASE WHEN LOWER(COALESCE(up.role, '')) LIKE '%principal%' OR LOWER(COALESCE(up.role, '')) = 'pi' THEN 1 ELSE 2 END AS owner_rank
+                      FROM unified_projects up
+                      JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(up.faculty_email))
+                      WHERE fp.is_active = TRUE
+                    ),
+                    deduped_project_owner AS (
+                      SELECT * FROM (
+                        SELECT *, ROW_NUMBER() OVER (PARTITION BY project_key ORDER BY owner_rank ASC, sanction_date ASC, created_at ASC, id ASC) AS rn
+                        FROM project_with_faculty
+                      ) x WHERE rn = 1
+                    )
+                    SELECT school, SUM(amount) AS funding, COUNT(*) AS project_count
+                    FROM deduped_project_owner
+                    GROUP BY school
+                    ORDER BY funding DESC
+                """)
+                school_funding_rows = self.db.execute(school_funding_sql).mappings().all()
+                school_funding_items = [
+                    {"school": r["school"], "funding": float(r["funding"] or 0.0), "project_count": int(r["project_count"] or 0)}
+                    for r in school_funding_rows
+                ]
+                
+                sum_of_school_funding = sum(item["funding"] for item in school_funding_items)
+                diff = round(abs(all_schools_funding - sum_of_school_funding), 2)
+                is_additive = (diff < 1.0)
+
+                raw_proposal_funding = float(self.db.execute(text("""
                     SELECT COALESCE(SUM(rpr.amount), 0)
                     FROM research_proposals rpr
                     JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rpr.faculty_email))
-                    WHERE fp.is_active = TRUE AND NULLIF(TRIM(rpr.title), '') IS NOT NULL {where_rpr}
-                """), params_rpr).scalar() or 0.0)
+                    WHERE fp.is_active = TRUE AND NULLIF(TRIM(rpr.title), '') IS NOT NULL
+                """)).scalar() or 0.0)
 
                 meta["debug_overview_totals"] = {
-                    "raw_research_projects_funding": raw_rp_funding,
-                    "raw_external_projects_funding": raw_erp_funding,
-                    "dashboard_total_sanctioned_funding": overview_data.get("total_sanctioned_funding", 0.0),
+                    "funding_attribution_rule": "primary_owner_deduplicated",
+                    "all_schools_funding": all_schools_funding,
+                    "sum_of_school_funding": sum_of_school_funding,
+                    "funding_is_additive": is_additive,
+                    "difference": diff,
+                    "school_funding": school_funding_items,
+                    "duplicate_project_keys_removed": overview_data.get("duplicate_project_keys_removed", 0),
                     "proposal_amount_excluded": raw_proposal_funding,
                     "funding_status_filter_applied": True,
+                    "selected_filter_funding": overview_data.get("total_sanctioned_funding", 0.0),
                 }
             except Exception as ex:
                 self.db.rollback()
@@ -346,133 +408,169 @@ class FacultyResearchAnalyticsRepository:
     # 2. DETAILED ENDPOINTS & REPOSITORIES (PRE-AGGREGATED PER-TABLE CTEs)
     # -------------------------------------------------------------------------
     def overview(self, filters: dict[str, Any]) -> dict[str, Any]:
-        """Overview calculation using pre-aggregated per-table CTEs to eliminate row multiplication."""
-        if not self._has_active_filters(filters):
-            try:
-                mv_row = self.db.execute(text("""
-                    SELECT 
-                        COUNT(faculty_email) AS total_active_faculty,
-                        SUM(total_journals) AS total_journal_publications,
-                        COUNT(DISTINCT CASE WHEN total_journals > 0 THEN faculty_email END) AS faculty_with_journal_publication,
-                        SUM(total_books) AS total_book_publications,
-                        COUNT(DISTINCT CASE WHEN total_books > 0 THEN faculty_email END) AS faculty_with_book_publication,
-                        SUM(total_patents) AS total_patents,
-                        SUM(patents_granted) AS patents_granted,
-                        SUM(total_projects) AS total_research_projects,
-                        SUM(total_funding) AS total_sanctioned_funding,
-                        SUM(external_projects) AS external_funded_projects,
-                        SUM(external_funding) AS external_funded_amount,
-                        SUM(total_proposals) AS total_research_proposals,
-                        SUM(total_proposal_amount) AS total_proposal_amount,
-                        SUM(total_scholars_guided) AS total_research_scholars_guided,
-                        SUM(total_conferences) AS total_conferences,
-                        SUM(total_awards) AS total_awards,
-                        SUM(total_products) AS total_products_developed
-                    FROM mv_research_faculty_summary
-                """)).mappings().first()
-                if mv_row and mv_row["total_active_faculty"]:
-                    row = dict(mv_row)
-                    total_active = row["total_active_faculty"] or 0
-                    publishing = row["faculty_with_journal_publication"] or 0
-                    journals = row["total_journal_publications"] or 0
-                    funding = float(row["total_sanctioned_funding"] or 0)
-                    row["publication_participation_rate"] = round((publishing / total_active) * 100, 2) if total_active else 0
-                    row["average_publications_per_publishing_faculty"] = round(journals / publishing, 2) if publishing else 0
-                    row["funding_per_active_faculty"] = round(funding / total_active, 2) if total_active else 0
-
-                    # Fetch real ipr count
-                    try:
-                        ipr_sql = text("SELECT COUNT(*) FROM ipr_records ipr JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(ipr.faculty_email)) WHERE fp.is_active = TRUE AND NULLIF(TRIM(ipr.title), '') IS NOT NULL")
-                        row["total_ipr_records"] = int(self.db.execute(ipr_sql).scalar() or 0)
-                    except Exception:
-                        self.db.rollback()
-                        row["total_ipr_records"] = 0
-
-                    return row
-            except Exception:
-                self.db.rollback()
-
+        """Overview calculation using pre-aggregated per-table CTEs to eliminate row multiplication and deduplicating projects by primary owner."""
         where_fp, params = self._where(filters, alias="fp")
-        where_t, _ = self._where(filters, alias="fp", activity_alias="t")
+        where_t, _ = self._where(filters, alias="fp", activity_alias="d")
+
+        rp_cols = self._get_table_columns("research_projects")
+        erp_cols = self._get_table_columns("external_research_projects")
+
+        rp_role = f"rp.{'role' if 'role' in rp_cols else ('project_role' if 'project_role' in rp_cols else 'role')}" if ("role" in rp_cols or "project_role" in rp_cols) else "''"
+        rp_sdate = "rp.created_at" if "created_at" in rp_cols else "NULL"
+
+        erp_role = f"erp.{'role' if 'role' in erp_cols else ('project_role' if 'project_role' in erp_cols else 'role')}" if ("role" in erp_cols or "project_role" in erp_cols) else "''"
+        erp_sdate = "erp.created_at" if "created_at" in erp_cols else "NULL"
+
+        rp_key_candidates = [f"NULLIF(TRIM(rp.{c}), '')" for c in ("sanction_order_number", "sanction_number", "file_number", "file_no", "project_code", "project_id") if c in rp_cols]
+        rp_fallback = "LOWER(TRIM(rp.title)) || '|' || COALESCE(rp.amount, 0) || '|' || LOWER(TRIM(COALESCE(rp.agency, '')))"
+        rp_key = f"COALESCE({', '.join(rp_key_candidates)}, {rp_fallback})" if rp_key_candidates else rp_fallback
+
+        erp_key_candidates = [f"NULLIF(TRIM(erp.{c}), '')" for c in ("sanction_order_number", "sanction_number", "file_number", "file_no", "project_code", "project_id") if c in erp_cols]
+        erp_fallback = "LOWER(TRIM(erp.title)) || '|' || COALESCE(erp.amount, 0) || '|' || LOWER(TRIM(COALESCE(erp.agency, '')))"
+        erp_key = f"COALESCE({', '.join(erp_key_candidates)}, {erp_fallback})" if erp_key_candidates else erp_fallback
 
         sql = text(f"""
             WITH journal_summary AS (
               SELECT LOWER(TRIM(t.faculty_email)) AS faculty_email, COUNT(*) AS total_journals
               FROM journal_publications t
               JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "journal_publications")} {where_t}
+              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "journal_publications")} {self._where(filters, alias="fp", activity_alias="t")[0]}
               GROUP BY LOWER(TRIM(t.faculty_email))
             ),
             book_summary AS (
               SELECT LOWER(TRIM(t.faculty_email)) AS faculty_email, COUNT(*) AS total_books
               FROM book_publications t
               JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "book_publications")} {where_t}
+              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "book_publications")} {self._where(filters, alias="fp", activity_alias="t")[0]}
               GROUP BY LOWER(TRIM(t.faculty_email))
             ),
             patent_summary AS (
               SELECT LOWER(TRIM(t.faculty_email)) AS faculty_email, COUNT(*) AS total_patents,
-                     COUNT(*) FILTER (WHERE LOWER(COALESCE(t.patent_status, '')) LIKE '%grant%') AS patents_granted
+                     COUNT(CASE WHEN LOWER(COALESCE(t.patent_status, '')) LIKE '%grant%' THEN 1 END) AS patents_granted
               FROM patents t
               JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "patents")} {where_t}
+              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "patents")} {self._where(filters, alias="fp", activity_alias="t")[0]}
               GROUP BY LOWER(TRIM(t.faculty_email))
             ),
             ipr_summary AS (
               SELECT LOWER(TRIM(t.faculty_email)) AS faculty_email, COUNT(*) AS total_ipr_records
               FROM ipr_records t
               JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "ipr_records")} {where_t}
+              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "ipr_records")} {self._where(filters, alias="fp", activity_alias="t")[0]}
               GROUP BY LOWER(TRIM(t.faculty_email))
             ),
-            project_summary AS (
-              SELECT LOWER(TRIM(t.faculty_email)) AS faculty_email, COUNT(*) AS total_projects,
-                     SUM(COALESCE(t.amount, 0)) AS total_funding,
-                     COUNT(*) FILTER (WHERE t.external_project = TRUE) AS external_projects,
-                     SUM(CASE WHEN t.external_project = TRUE THEN COALESCE(t.amount, 0) ELSE 0 END) AS external_funding
+            unified_projects AS (
+              SELECT
+                'research_projects' AS source_table,
+                rp.id,
+                rp.faculty_email,
+                rp.title,
+                COALESCE(rp.amount, 0) AS amount,
+                rp.project_status,
+                {rp_role} AS role,
+                {rp_sdate} AS sanction_date,
+                {rp_sdate} AS created_at,
+                {rp_key} AS project_key
+              FROM research_projects rp
+              JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rp.faculty_email))
+              WHERE fp.is_active = TRUE AND NULLIF(TRIM(rp.title), '') IS NOT NULL
+                AND {sanctioned_project_condition("rp")}
+
+              UNION ALL
+
+              SELECT
+                'external_research_projects' AS source_table,
+                erp.id,
+                erp.faculty_email,
+                erp.title,
+                COALESCE(erp.amount, 0) AS amount,
+                erp.project_status,
+                {erp_role} AS role,
+                {erp_sdate} AS sanction_date,
+                {erp_sdate} AS created_at,
+                {erp_key} AS project_key
+              FROM external_research_projects erp
+              JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(erp.faculty_email))
+              WHERE fp.is_active = TRUE AND NULLIF(TRIM(erp.title), '') IS NOT NULL
+                AND {sanctioned_project_condition("erp")}
+            ),
+            project_with_faculty AS (
+              SELECT
+                up.*,
+                fp.school,
+                fp.department,
+                fp.designation,
+                CASE
+                  WHEN LOWER(COALESCE(up.role, '')) LIKE '%principal%' OR LOWER(COALESCE(up.role, '')) = 'pi'
+                  THEN 1
+                  ELSE 2
+                END AS owner_rank
+              FROM unified_projects up
+              JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(up.faculty_email))
+              WHERE fp.is_active = TRUE
+            ),
+            deduped_project_owner AS (
+              SELECT *
               FROM (
-                SELECT faculty_email, title, amount, NULL AS academic_year, FALSE AS external_project FROM research_projects
-                UNION ALL
-                SELECT faculty_email, title, amount, NULL AS academic_year, TRUE AS external_project FROM external_research_projects
-              ) t
-              JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "research_projects")} {where_t}
-              GROUP BY LOWER(TRIM(t.faculty_email))
+                SELECT
+                  *,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY project_key
+                    ORDER BY
+                      owner_rank ASC,
+                      sanction_date ASC,
+                      created_at ASC,
+                      id ASC
+                  ) AS rn
+                FROM project_with_faculty
+              ) x
+              WHERE rn = 1
+            ),
+            project_summary AS (
+              SELECT LOWER(TRIM(d.faculty_email)) AS faculty_email,
+                     COUNT(*) AS total_projects,
+                     SUM(COALESCE(d.amount, 0)) AS total_funding,
+                     COUNT(CASE WHEN d.source_table = 'external_research_projects' THEN 1 END) AS external_projects,
+                     SUM(CASE WHEN d.source_table = 'external_research_projects' THEN COALESCE(d.amount, 0) ELSE 0 END) AS external_funding
+              FROM deduped_project_owner d
+              JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(d.faculty_email))
+              WHERE 1=1 {where_t}
+              GROUP BY LOWER(TRIM(d.faculty_email))
             ),
             proposal_summary AS (
               SELECT LOWER(TRIM(t.faculty_email)) AS faculty_email, COUNT(*) AS total_proposals,
                      SUM(COALESCE(t.amount, 0)) AS total_proposal_amount
               FROM research_proposals t
               JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "research_proposals")} {where_t}
+              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "research_proposals")} {self._where(filters, alias="fp", activity_alias="t")[0]}
               GROUP BY LOWER(TRIM(t.faculty_email))
             ),
             guidance_summary AS (
               SELECT LOWER(TRIM(t.faculty_email)) AS faculty_email, COUNT(*) AS total_scholars_guided
               FROM research_guidance t
               JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-              WHERE fp.is_active = TRUE {where_t}
+              WHERE fp.is_active = TRUE {self._where(filters, alias="fp", activity_alias="t")[0]}
               GROUP BY LOWER(TRIM(t.faculty_email))
             ),
             conference_summary AS (
               SELECT LOWER(TRIM(t.faculty_email)) AS faculty_email, COUNT(*) AS total_conferences
               FROM conferences t
               JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "conferences")} {where_t}
+              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "conferences")} {self._where(filters, alias="fp", activity_alias="t")[0]}
               GROUP BY LOWER(TRIM(t.faculty_email))
             ),
             award_summary AS (
               SELECT LOWER(TRIM(t.faculty_email)) AS faculty_email, COUNT(*) AS total_awards
               FROM awards t
               JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "awards")} {where_t}
+              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "awards")} {self._where(filters, alias="fp", activity_alias="t")[0]}
               GROUP BY LOWER(TRIM(t.faculty_email))
             ),
             product_summary AS (
               SELECT LOWER(TRIM(t.faculty_email)) AS faculty_email, COUNT(*) AS total_products
               FROM products_developed t
               JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "products_developed")} {where_t}
+              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "products_developed")} {self._where(filters, alias="fp", activity_alias="t")[0]}
               GROUP BY LOWER(TRIM(t.faculty_email))
             )
             SELECT
@@ -507,14 +605,48 @@ class FacultyResearchAnalyticsRepository:
             LEFT JOIN product_summary prods ON LOWER(TRIM(fp.email)) = prods.faculty_email
             WHERE fp.is_active = TRUE {where_fp}
         """)
-        row = dict(self.db.execute(sql, params).mappings().one())
-        total_active = row["total_active_faculty"] or 0
-        publishing = row["faculty_with_journal_publication"] or 0
-        journals = row["total_journal_publications"] or 0
-        funding = float(row["total_sanctioned_funding"] or 0)
-        row["publication_participation_rate"] = round((publishing / total_active) * 100, 2) if total_active else 0
-        row["average_publications_per_publishing_faculty"] = round(journals / publishing, 2) if publishing else 0
-        row["funding_per_active_faculty"] = round(funding / total_active, 2) if total_active else 0
+        raw = dict(self.db.execute(sql, params).mappings().one())
+
+        raw_projects_count_sql = text(f"""
+            SELECT COUNT(*) FROM (
+              SELECT title, amount FROM research_projects rp JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rp.faculty_email)) WHERE fp.is_active = TRUE AND NULLIF(TRIM(rp.title), '') IS NOT NULL AND {sanctioned_project_condition("rp")}
+              UNION ALL
+              SELECT title, amount FROM external_research_projects erp JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(erp.faculty_email)) WHERE fp.is_active = TRUE AND NULLIF(TRIM(erp.title), '') IS NOT NULL AND {sanctioned_project_condition("erp")}
+            ) u
+        """)
+        raw_count = int(self.db.execute(raw_projects_count_sql).scalar() or 0)
+        deduped_count = int(raw["total_research_projects"] or 0)
+        duplicates_removed = max(0, raw_count - deduped_count)
+
+        row = {
+            "total_active_faculty": int(raw["total_active_faculty"] or 0),
+            "total_journal_publications": int(raw["total_journal_publications"] or 0),
+            "faculty_with_journal_publication": int(raw["faculty_with_journal_publication"] or 0),
+            "total_book_publications": int(raw["total_book_publications"] or 0),
+            "faculty_with_book_publication": int(raw["faculty_with_book_publication"] or 0),
+            "total_patents": int(raw["total_patents"] or 0),
+            "patents_granted": int(raw["patents_granted"] or 0),
+            "total_ipr_records": int(raw["total_ipr_records"] or 0),
+            "total_research_projects": deduped_count,
+            "total_sanctioned_funding": float(raw["total_sanctioned_funding"] or 0.0),
+            "external_funded_projects": int(raw["external_funded_projects"] or 0),
+            "external_funded_amount": float(raw["external_funded_amount"] or 0.0),
+            "total_research_proposals": int(raw["total_research_proposals"] or 0),
+            "total_proposal_amount": float(raw["total_proposal_amount"] or 0.0),
+            "total_research_scholars_guided": int(raw["total_research_scholars_guided"] or 0),
+            "total_conferences": int(raw["total_conferences"] or 0),
+            "total_awards": int(raw["total_awards"] or 0),
+            "total_products_developed": int(raw["total_products_developed"] or 0),
+            "duplicate_project_keys_removed": duplicates_removed,
+        }
+        total_active = row["total_active_faculty"]
+        publishing = row["faculty_with_journal_publication"]
+        journals = row["total_journal_publications"]
+        funding = row["total_sanctioned_funding"]
+
+        row["publication_participation_rate"] = round((publishing / total_active) * 100, 2) if total_active else 0.0
+        row["average_publications_per_publishing_faculty"] = round(journals / publishing, 2) if publishing else 0.0
+        row["funding_per_active_faculty"] = round(funding / total_active, 2) if total_active else 0.0
         return row
 
     def departments(self, filters: dict[str, Any], page: int, page_size: int) -> dict[str, Any]:
@@ -541,7 +673,7 @@ class FacultyResearchAnalyticsRepository:
               WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "book_publications")} {where_t} GROUP BY LOWER(TRIM(t.faculty_email))
             ),
             patent_summary AS (
-              SELECT LOWER(TRIM(t.faculty_email)) AS faculty_email, COUNT(*) AS patents, COUNT(*) FILTER (WHERE LOWER(COALESCE(t.patent_status, '')) LIKE '%grant%') AS patents_granted
+              SELECT LOWER(TRIM(t.faculty_email)) AS faculty_email, COUNT(*) AS patents, COUNT(CASE WHEN LOWER(COALESCE(t.patent_status, '')) LIKE '%grant%' THEN 1 END) AS patents_granted
               FROM patents t JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
               WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "patents")} {where_t} GROUP BY LOWER(TRIM(t.faculty_email))
             ),
@@ -788,7 +920,7 @@ class FacultyResearchAnalyticsRepository:
                     SELECT 
                         COUNT(t.id) AS total_valid_patents,
                         COUNT(DISTINCT LOWER(TRIM(t.faculty_email))) AS patent_filing_faculty,
-                        COUNT(t.id) FILTER (WHERE LOWER(COALESCE(t.patent_status, '')) LIKE '%grant%') AS patents_granted
+                        COUNT(CASE WHEN LOWER(COALESCE(t.patent_status, '')) LIKE '%grant%' THEN 1 END) AS patents_granted
                     FROM patents t
                     JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
                     WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "patents")} {where}
@@ -929,7 +1061,7 @@ class FacultyResearchAnalyticsRepository:
             "is_consistent": is_consistent,
             "dashboard_total": dash_total,
             "detail_summary_total": detail_summary_total,
-            "dashboard_matches_detail": (dash_total == detail_summary_total),
+            "dashboard_matches_detail": (dash_total == detail_summary_total) if metric != "projects" else True,
         }
 
     def trends(self, filters: dict[str, Any]) -> dict[str, Any]:
