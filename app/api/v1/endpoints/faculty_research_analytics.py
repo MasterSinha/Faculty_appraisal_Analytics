@@ -38,6 +38,13 @@ def clean_filter(value: Optional[str]) -> Optional[str]:
     return val_str
 
 
+def clamp_page_size(page_size: int, max_limit: int = 100) -> int:
+    """Clamp page size to prevent HTTP 422 errors while enforcing backend limits."""
+    if page_size < 1:
+        return 20
+    return min(page_size, max_limit)
+
+
 def query_filters(
     academic_year: Optional[str] = Query(None, description="Academic year filter"),
     school: Optional[str] = Query(None, description="School filter"),
@@ -171,7 +178,7 @@ def refresh_materialized_views(
 
 
 # -----------------------------------------------------------------------------
-# 3. DETAILED ENDPOINTS (WITH PRE-PAGINATION SUMMARY METRICS)
+# 3. DETAILED ENDPOINTS (WITH AUTOMATIC PAGE_SIZE CLAMPING)
 # -----------------------------------------------------------------------------
 @router.get("/overview", response_model=ResearchOverview)
 def overview(filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
@@ -179,18 +186,18 @@ def overview(filters: dict[str, Any] = Depends(query_filters), _: dict = Depends
 
 
 @router.get("/departments", response_model=PaginatedResponse)
-def departments(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
-    return service.departments(filters, page, page_size)
+def departments(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=50000), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
+    return service.departments(filters, page, clamp_page_size(page_size, max_limit=1000))
 
 
 @router.get("/schools", response_model=PaginatedResponse)
-def schools(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
-    return service.schools(filters, page, page_size)
+def schools(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=50000), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
+    return service.schools(filters, page, clamp_page_size(page_size, max_limit=1000))
 
 
 @router.get("/faculty", response_model=PaginatedResponse)
-def faculty(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
-    return service.faculty(filters, page, page_size)
+def faculty(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=50000), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
+    return service.faculty(filters, page, clamp_page_size(page_size, max_limit=1000))
 
 
 @router.get("/faculty/{faculty_email}")
@@ -199,23 +206,23 @@ def faculty_detail(faculty_email: str, filters: dict[str, Any] = Depends(query_f
 
 
 @router.get("/publications", response_model=PaginatedResponse)
-def publications(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
-    return service.category_records("journal_publications", filters, page, page_size)
+def publications(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=50000), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
+    return service.category_records("journal_publications", filters, page, clamp_page_size(page_size, max_limit=100))
 
 
 @router.get("/books", response_model=PaginatedResponse)
-def books(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
-    return service.category_records("book_publications", filters, page, page_size)
+def books(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=50000), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
+    return service.category_records("book_publications", filters, page, clamp_page_size(page_size, max_limit=100))
 
 
 @router.get("/patents", response_model=PaginatedResponse)
-def patents(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
-    return service.category_records("patents", filters, page, page_size)
+def patents(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=50000), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
+    return service.category_records("patents", filters, page, clamp_page_size(page_size, max_limit=100))
 
 
 @router.get("/projects", response_model=PaginatedResponse)
-def projects(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
-    return service.category_records("research_projects", filters, page, page_size)
+def projects(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=50000), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
+    return service.category_records("research_projects", filters, page, clamp_page_size(page_size, max_limit=100))
 
 
 @router.get("/funding")
@@ -225,8 +232,8 @@ def funding(filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(
 
 
 @router.get("/guidance", response_model=PaginatedResponse)
-def guidance(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
-    return service.category_records("research_guidance", filters, page, page_size)
+def guidance(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=50000), filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
+    return service.category_records("research_guidance", filters, page, clamp_page_size(page_size, max_limit=100))
 
 
 @router.get("/trends")

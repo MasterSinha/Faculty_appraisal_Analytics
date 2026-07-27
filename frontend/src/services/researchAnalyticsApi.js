@@ -3,7 +3,7 @@ import { sanitizeFilters } from '../utils/filterUtils'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const API_PREFIX = `${API_BASE_URL}/api/v1/analytics/research`
 const REQUEST_TIMEOUT_MS = 15000
-const ANALYTICS_RECORD_LIMIT = 5000
+const ANALYTICS_RECORD_LIMIT = 100
 const ANALYTICS_MAX_PAGES = 50
 
 function buildUrl(path, params = {}) {
@@ -112,7 +112,9 @@ async function request(path, params = {}, options = {}) {
       let detail = ''
       try {
         const errBody = await response.json()
-        detail = errBody.detail || ''
+        detail = typeof errBody.detail === 'string'
+          ? errBody.detail
+          : JSON.stringify(errBody.detail || errBody)
       } catch {
         // ignore json parse error
       }

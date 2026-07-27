@@ -3,6 +3,7 @@ import unittest
 from sqlalchemy import Boolean, Column, Float, Integer, MetaData, String, Table, create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.api.v1.endpoints.faculty_research_analytics import clamp_page_size
 from app.core.cache import clear_cache
 from app.database import get_db
 from app.main import app
@@ -279,6 +280,12 @@ class TestBackendArchitecture(unittest.TestCase):
         self.assertIsNone(clean_filter(""))
         self.assertIsNone(clean_filter("undefined"))
         self.assertEqual(clean_filter("School of Engineering"), "School of Engineering")
+
+    def test_clamp_page_size(self):
+        self.assertEqual(clamp_page_size(5000, max_limit=100), 100)
+        self.assertEqual(clamp_page_size(0, max_limit=100), 20)
+        self.assertEqual(clamp_page_size(50, max_limit=100), 50)
+        self.assertEqual(clamp_page_size(5000, max_limit=1000), 1000)
 
     def test_valid_condition_helper(self):
         self.assertIn("title", valid_condition_for_table("t", "journal_publications"))
