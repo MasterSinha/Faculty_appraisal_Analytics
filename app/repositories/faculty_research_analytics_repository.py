@@ -25,6 +25,11 @@ class FacultyResearchAnalyticsRepository:
     def __init__(self, db: Session):
         self.db = db
 
+    def _has_active_filters(self, filters: dict[str, Any]) -> bool:
+        """Check if any row-filtering parameter is specified."""
+        filter_keys = ("academic_year", "school", "department", "designation", "faculty_email", "category", "indexing", "status", "agency", "search")
+        return any(filters.get(k) for k in filter_keys)
+
     # -------------------------------------------------------------------------
     # 1. DASHBOARD SUMMARY ENDPOINT IMPLEMENTATION
     # -------------------------------------------------------------------------
@@ -214,7 +219,7 @@ class FacultyResearchAnalyticsRepository:
     # -------------------------------------------------------------------------
     def overview(self, filters: dict[str, Any]) -> dict[str, Any]:
         """Overview calculation with Materialized View acceleration."""
-        if not any(filters.values()):
+        if not self._has_active_filters(filters):
             try:
                 mv_row = self.db.execute(text("""
                     SELECT 
@@ -324,9 +329,9 @@ class FacultyResearchAnalyticsRepository:
 
     def departments(self, filters: dict[str, Any], page: int, page_size: int) -> dict[str, Any]:
         """Department summary with MV acceleration."""
-        if not any(filters.values()):
+        if not self._has_active_filters(filters):
             try:
-                base_mv = "SELECT * FROM mv_research_department_summary"
+                base_mv = "WITH summary AS (SELECT * FROM mv_research_department_summary)"
                 return self._paginate(base_mv, "SELECT *, ROUND((research_active_faculty::numeric / NULLIF(total_active_faculty, 0)) * 100, 2) AS publication_participation_percentage FROM summary ORDER BY journal_publications DESC", {}, page, page_size)
             except Exception:
                 self.db.rollback()
@@ -374,9 +379,9 @@ class FacultyResearchAnalyticsRepository:
 
     def schools(self, filters: dict[str, Any], page: int, page_size: int) -> dict[str, Any]:
         """School summary with MV acceleration."""
-        if not any(filters.values()):
+        if not self._has_active_filters(filters):
             try:
-                base_mv = "SELECT * FROM mv_research_school_summary"
+                base_mv = "WITH summary AS (SELECT * FROM mv_research_school_summary)"
                 return self._paginate(base_mv, "SELECT * FROM summary ORDER BY journal_publications DESC", {}, page, page_size)
             except Exception:
                 self.db.rollback()
@@ -588,7 +593,7 @@ class FacultyResearchAnalyticsRepository:
     # PRIVATE HELPER QUERIES & SUB-CALCULATIONS
     # -------------------------------------------------------------------------
     def _trend_summary(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
-        if not any(filters.values()):
+        if not self._has_active_filters(filters):
             try:
                 mv_rows = self.db.execute(text("SELECT * FROM mv_research_yearly_trend ORDER BY academic_year ASC")).mappings().all()
                 if mv_rows:
