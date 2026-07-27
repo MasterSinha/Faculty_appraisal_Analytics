@@ -287,16 +287,16 @@ export default function AppraisalCompletionAnalyticsPage({ filters, updateFilter
           </div>
 
           <section className="executive-chart-row two-col">
-            <RankingList title="Submission status by department" subtitle="Department" rows={departmentMetrics.map((row) => ({ label: row.department, value: row.submitted_count }))} />
-            <MiniBarChart title="Completion rate by school" subtitle="School" rows={schoolRows} formatter={percent} />
-            <MiniBarChart title="Submission trend by academic year" subtitle="Academic year" rows={yearRows} />
-            <MiniBarChart title="Research-active versus submitted faculty" subtitle="Submission alignment" rows={[
+            <RankingList title="Submitted appraisal count by department" subtitle="Department submission volume" rows={departmentMetrics.map((row) => ({ label: row.department, value: row.submitted_count }))} />
+            <MiniBarChart title="Appraisal completion rate by school" subtitle="School completion percentage" rows={schoolRows} formatter={percent} />
+            <MiniBarChart title="Appraisal submission count by academic year" subtitle="Year-wise submission trend" rows={yearRows} />
+            <MiniBarChart title="Research-active faculty compared with submitted appraisals" subtitle="Submission alignment check" rows={[
               { label: 'Research-active faculty', value: researchActive.length },
               { label: 'Submitted appraisals', value: submitted },
               { label: 'Research-active not submitted', value: researchActiveNotSubmitted },
             ]} />
-            <MiniBarChart title="Evidence completion by department" subtitle="Missing evidence" rows={departmentMetrics.map((row) => ({ label: row.department, value: row.records_without_documents }))} />
-            <MiniBarChart title="Review-stage distribution" subtitle="Reviewer action" rows={statusRows} />
+            <MiniBarChart title="Research records missing evidence by department" subtitle="Document gap count" rows={departmentMetrics.map((row) => ({ label: row.department, value: row.records_without_documents }))} />
+            <MiniBarChart title="Appraisals distributed by review stage" subtitle="Reviewer action queue" rows={statusRows} />
             <StatusPanel rows={statusRows} />
           </section>
 

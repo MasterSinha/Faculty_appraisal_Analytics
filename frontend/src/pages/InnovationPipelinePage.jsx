@@ -298,22 +298,22 @@ export default function InnovationPipelinePage({ sharedData, filters, updateFilt
           {activeTab === 'Institutional Funnel' && (
             <section className="executive-chart-row two-col">
               <FunnelChart stages={stages} />
-              <MiniBarChart title="Innovation activity by school" subtitle="School contribution" rows={schoolRows} />
-              <MiniBarChart title="Pipeline stages by department" subtitle="Department contribution" rows={departmentRows} />
-              <MiniBarChart title="Academic-year pipeline trend" subtitle="Year comparison" rows={yearRows} />
+              <MiniBarChart title="Which schools contribute most to innovation activity" subtitle="Aggregate activity count by school" rows={schoolRows} />
+              <MiniBarChart title="Which departments contribute most across pipeline stages" subtitle="Aggregate innovation count by department" rows={departmentRows} />
+              <MiniBarChart title="How innovation pipeline activity changed by academic year" subtitle="Aggregate stage counts by year" rows={yearRows} />
             </section>
           )}
 
           {activeTab === 'Department Funnel' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Pipeline stages by department" subtitle="All innovation categories" rows={departmentRows} />
+              <MiniBarChart title="Department contribution across all innovation categories" subtitle="Proposals, projects, patents, IPR, and products" rows={departmentRows} />
               <InsightCard title="Department pipeline gaps" items={gapItems.filter((item) => item.label.includes('Departments') || item.label.includes('funding'))} />
             </section>
           )}
 
           {activeTab === 'Faculty Innovation' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Faculty innovation diversity" subtitle="Categories active" rows={facultyCategoryMap} />
+              <MiniBarChart title="Faculty active in multiple innovation categories" subtitle="Innovation diversity by faculty" rows={facultyCategoryMap} />
               <InsightCard title="Faculty innovation profile" items={[
                 { label: 'Innovation-active faculty', value: innovationFaculty.size },
                 { label: 'Faculty active in three or more categories', value: facultyCategoryMap.filter((faculty) => faculty.value >= 3).length },
@@ -324,15 +324,15 @@ export default function InnovationPipelinePage({ sharedData, filters, updateFilt
 
           {activeTab === 'Academic-Year Trend' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Academic-year pipeline trend" subtitle="All stages" rows={yearRows} />
-              <MiniBarChart title="Academic-year comparison" subtitle="Proposal baseline" rows={byCount(proposals, (record) => record.academic_year)} />
+              <MiniBarChart title="Year-wise activity across all pipeline stages" subtitle="Aggregate innovation trend" rows={yearRows} />
+              <MiniBarChart title="Proposal submission count by academic year" subtitle="Proposal baseline for comparison" rows={byCount(proposals, (record) => record.academic_year)} />
             </section>
           )}
 
           {activeTab === 'Pipeline Gaps' && (
             <section className="executive-chart-row two-col">
               <InsightCard title="Gap analytics" items={gapItems} />
-              <MiniBarChart title="Departments with product output" subtitle="Products developed" rows={byCount(products, (record) => departmentLabel(record))} />
+              <MiniBarChart title="Departments that reached product development output" subtitle="Products developed by department" rows={byCount(products, (record) => departmentLabel(record))} />
             </section>
           )}
         </>

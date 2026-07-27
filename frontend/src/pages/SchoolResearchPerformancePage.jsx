@@ -175,7 +175,7 @@ function SchoolDrawer({ school, onClose }) {
           <button type="button" onClick={onClose}>Close</button>
         </header>
         <div className="faculty-drawer-content">
-          <MiniBarChart title="Department comparison" subtitle="Departments" rows={(school.department_comparison || []).map((row) => ({ label: row.department, value: row.total_output }))} />
+          <MiniBarChart title="Department output inside this school" subtitle="Valid research records by department" rows={(school.department_comparison || []).map((row) => ({ label: row.department, value: row.total_output }))} />
           <div className="quality-grid">
             <span>Faculty participation <strong>{percent(school.publication_participation)}</strong></span>
             <span>Research category profile <strong>{school.diversity_score} categories</strong></span>
@@ -320,8 +320,8 @@ export default function SchoolResearchPerformancePage({ filters, updateFilters, 
           ]} />
 
           <section className="executive-chart-row two-col">
-            <RankingList title="School research output" subtitle="Total output ranking" rows={chartRows} />
-            <RadarChart title="School Research Profile" subtitle="Category comparison" axes={[
+            <RankingList title="Schools ranked by total research output" subtitle="Valid research activity records" rows={chartRows} />
+            <RadarChart title="Research category profile by school" subtitle="Compare journals, books, patents, projects, guidance, awards" axes={[
               { key: 'journals', label: 'Journals' },
               { key: 'books', label: 'Books' },
               { key: 'patents', label: 'Patents' },
@@ -336,13 +336,13 @@ export default function SchoolResearchPerformancePage({ filters, updateFilters, 
               guidance: row.students_guided,
             }))} />
             <CategoryComparison rows={rows} />
-            <MiniBarChart title="Publication participation by school" subtitle="Participation" rows={rows.map((row) => ({ label: row.school, value: row.publication_participation }))} formatter={percent} />
-            <MiniBarChart title="Funding by school" subtitle="Funding" rows={rows.map((row) => ({ label: row.school, value: row.total_funding }))} formatter={money} />
-            <MiniBarChart title="Patent and IPR contribution by school" subtitle="Innovation" rows={patentRows} />
-            <MiniBarChart title="Academic-year trend" subtitle="Growth" rows={rows.map((row) => ({ label: row.school, value: row.year_over_year_growth }))} formatter={percent} />
-            <MiniBarChart title="School research diversity" subtitle="Diversity" rows={rows.map((row) => ({ label: row.school, value: row.diversity_score }))} />
-            <MiniBarChart title="School contribution percentage to university output" subtitle="Contribution share" rows={contributionRows} formatter={percent} />
-            <MiniBarChart title="School output ranking" subtitle="Total output" rows={chartRows} />
+            <MiniBarChart title="Publication participation rate by school" subtitle="Publishing faculty percentage" rows={rows.map((row) => ({ label: row.school, value: row.publication_participation }))} formatter={percent} />
+            <MiniBarChart title="Sanctioned funding amount by school" subtitle="Project funding comparison" rows={rows.map((row) => ({ label: row.school, value: row.total_funding }))} formatter={money} />
+            <MiniBarChart title="Patent and IPR record contribution by school" subtitle="Innovation activity count" rows={patentRows} />
+            <MiniBarChart title="Year-over-year research output growth by school" subtitle="Growth percentage" rows={rows.map((row) => ({ label: row.school, value: row.year_over_year_growth }))} formatter={percent} />
+            <MiniBarChart title="Research diversity score by school" subtitle="Number of active research categories" rows={rows.map((row) => ({ label: row.school, value: row.diversity_score }))} />
+            <MiniBarChart title="School share of total university research output" subtitle="Contribution percentage" rows={contributionRows} formatter={percent} />
+            <MiniBarChart title="School total output count ranking" subtitle="Valid research activity records" rows={chartRows} />
           </section>
 
           <InsightPanel insights={insights} />

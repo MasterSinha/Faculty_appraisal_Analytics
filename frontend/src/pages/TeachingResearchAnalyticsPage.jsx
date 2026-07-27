@@ -303,30 +303,30 @@ export default function TeachingResearchAnalyticsPage({ filters, updateFilters, 
           )}
           {activeTab === 'Department Balance' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Department teaching-research balance" subtitle="Score gap" rows={departmentRows} formatter={percent} />
-              <MiniBarChart title="Average teaching score by department" subtitle="Teaching" rows={departmentRows} valueKey="teaching" formatter={percent} />
-              <MiniBarChart title="Average research score by department" subtitle="Research" rows={departmentRows} valueKey="research" formatter={percent} />
+              <MiniBarChart title="Teaching-research score balance by department" subtitle="Normalized score gap" rows={departmentRows} formatter={percent} />
+              <MiniBarChart title="Average normalized teaching score by department" subtitle="Teaching performance percentage" rows={departmentRows} valueKey="teaching" formatter={percent} />
+              <MiniBarChart title="Average normalized research score by department" subtitle="Research performance percentage" rows={departmentRows} valueKey="research" formatter={percent} />
             </section>
           )}
           {activeTab === 'Teaching Components' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Innovative teaching versus student feedback association" subtitle="Association only" rows={rows.map((row) => ({ label: row.faculty_name, value: Math.abs(row.innovative_teaching_score - row.student_feedback_score) }))} formatter={percent} />
-              <MiniBarChart title="ICT usage versus student feedback association" subtitle="Association only" rows={rows.map((row) => ({ label: row.faculty_name, value: Math.abs(row.ict_usage_score - row.student_feedback_score) }))} formatter={percent} />
-              <MiniBarChart title="Teaching process score" subtitle="Teaching source" rows={rows.map((row) => ({ label: row.faculty_name, value: row.teaching_process_score }))} formatter={percent} />
-              <MiniBarChart title="Course files and self development" subtitle="Teaching source" rows={rows.map((row) => ({ label: row.faculty_name, value: (row.course_files_score + row.self_development_score) / 2 }))} formatter={percent} />
+              <MiniBarChart title="Gap between innovative teaching and student feedback" subtitle="Association only, normalized percentages" rows={rows.map((row) => ({ label: row.faculty_name, value: Math.abs(row.innovative_teaching_score - row.student_feedback_score) }))} formatter={percent} />
+              <MiniBarChart title="Gap between ICT usage and student feedback" subtitle="Association only, normalized percentages" rows={rows.map((row) => ({ label: row.faculty_name, value: Math.abs(row.ict_usage_score - row.student_feedback_score) }))} formatter={percent} />
+              <MiniBarChart title="Faculty teaching process score" subtitle="Normalized teaching source score" rows={rows.map((row) => ({ label: row.faculty_name, value: row.teaching_process_score }))} formatter={percent} />
+              <MiniBarChart title="Faculty course file and self-development score" subtitle="Average normalized teaching support score" rows={rows.map((row) => ({ label: row.faculty_name, value: (row.course_files_score + row.self_development_score) / 2 }))} formatter={percent} />
             </section>
           )}
           {activeTab === 'Research Components' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Publication component" subtitle="Research source" rows={rows.map((row) => ({ label: row.faculty_name, value: row.publications_score }))} formatter={percent} />
-              <MiniBarChart title="Projects component" subtitle="Research source" rows={rows.map((row) => ({ label: row.faculty_name, value: row.projects_score }))} formatter={percent} />
-              <MiniBarChart title="Patent and IPR component" subtitle="Research source" rows={rows.map((row) => ({ label: row.faculty_name, value: row.patents_score }))} formatter={percent} />
+              <MiniBarChart title="Faculty publication component score" subtitle="Normalized research source score" rows={rows.map((row) => ({ label: row.faculty_name, value: row.publications_score }))} formatter={percent} />
+              <MiniBarChart title="Faculty project funding component score" subtitle="Normalized research source score" rows={rows.map((row) => ({ label: row.faculty_name, value: row.projects_score }))} formatter={percent} />
+              <MiniBarChart title="Faculty patent and IPR component score" subtitle="Normalized research source score" rows={rows.map((row) => ({ label: row.faculty_name, value: row.patents_score }))} formatter={percent} />
             </section>
           )}
           {activeTab === 'Trends' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Balanced performance trend by academic year" subtitle="Balanced leaders" rows={yearRows} />
-              <MiniBarChart title="Faculty quadrant distribution" subtitle="Quadrants" rows={[
+              <MiniBarChart title="Balanced performer count by academic year" subtitle="Balanced leaders trend" rows={yearRows} />
+              <MiniBarChart title="Faculty distribution across teaching-research quadrants" subtitle="Normalized score quadrant count" rows={[
                 { label: 'Balanced Leaders', value: balanced.length },
                 { label: 'Teaching Focused', value: teachingFocused.length },
                 { label: 'Research Focused', value: researchFocused.length },

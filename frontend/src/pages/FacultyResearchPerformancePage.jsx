@@ -219,7 +219,7 @@ function FacultyDrawer({ faculty, onClose }) {
         <div className="faculty-drawer-content">
           {tab === 'Overview' ? (
             <>
-              <MiniBarChart title="Research category distribution" subtitle="Faculty detail" rows={categoryRows} />
+              <MiniBarChart title="This faculty's research activity by category" subtitle="Detail drawer category mix" rows={categoryRows} />
               <div className="quality-grid">
                 <span>Diversity score <strong>{faculty.diversity_score}</strong></span>
                 <span>Funding received <strong>{money(faculty.funding)}</strong></span>
@@ -406,12 +406,12 @@ export default function FacultyResearchPerformancePage({ filters, updateFilters,
               badgeKey="validatedScore"
               badgeFormatter={(value) => `VC score ${formatNumber(value)}`}
             />
-            <MiniBarChart title="Top faculty by validated score" subtitle="Validated score" rows={topScoreRows} />
-            <RadarChart title="Top Faculty Research Profile" subtitle="Top 3 by output" axes={radarAxes} rows={radarRows} />
-            <MiniBarChart title="Research diversity distribution" subtitle="Diversity" rows={diversityRows} />
-            <MiniBarChart title="Faculty performance trend" subtitle="Selected period" rows={topOutputRows.slice(0, 6)} />
+            <MiniBarChart title="Faculty ranked by validated research score" subtitle="Final validated score ranking" rows={topScoreRows} />
+            <RadarChart title="Category profile for top research-output faculty" subtitle="Top 3 faculty by output count" axes={radarAxes} rows={radarRows} />
+            <MiniBarChart title="How many research categories each faculty covers" subtitle="Diversity score distribution" rows={diversityRows} />
+            <MiniBarChart title="Top faculty output count in the selected period" subtitle="Valid research activity records" rows={topOutputRows.slice(0, 6)} />
             <ScatterChart rows={scatterRows} />
-            <MiniBarChart title="Self versus final score comparison" subtitle="Score review" rows={facultyRows.map((faculty) => ({ label: faculty.faculty_name, value: Math.max(faculty.self_score - faculty.validated_score, 0) }))} />
+            <MiniBarChart title="Difference between self-reported and validated score" subtitle="Analytics only score gap" rows={facultyRows.map((faculty) => ({ label: faculty.faculty_name, value: Math.max(faculty.self_score - faculty.validated_score, 0) }))} />
           </section>
 
           <SegmentPanel selectedSegment={segmentFilter} onChange={setSegmentFilter} />

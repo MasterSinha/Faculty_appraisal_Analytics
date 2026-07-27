@@ -381,9 +381,9 @@ export default function DepartmentResearchPerformancePage({ filters, updateFilte
           {activeTab === 'Comparison' && (
             <section className="executive-chart-row two-col">
               <StatRing value={rows.length ? (rows.filter((row) => row.health_category === 'Excellent' || row.health_category === 'Strong').length / rows.length) * 100 : 0} label="Strong Departments" color="#22c55e" />
-              <RankingList title="Department output ranking" subtitle="Research output" rows={chartRows} />
-              <MiniBarChart title="Department output ranking" subtitle="Research output" rows={chartRows} />
-              <RadarChart title="Top Department Research Profile" subtitle="Top 3 departments" axes={[
+              <RankingList title="SoEMR departments ranked by total research output" subtitle="Valid research activity records" rows={chartRows} />
+              <MiniBarChart title="SoEMR department output comparison" subtitle="Total research output count" rows={chartRows} />
+              <RadarChart title="Research category profile of top SoEMR departments" subtitle="Top 3 departments by output" axes={[
                 { key: 'journals', label: 'Journals' },
                 { key: 'patents', label: 'Patents' },
                 { key: 'projects', label: 'Projects' },
@@ -402,26 +402,26 @@ export default function DepartmentResearchPerformancePage({ filters, updateFilte
           )}
           {activeTab === 'Participation' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Participation rate by department" subtitle="Publishing faculty" rows={rows.map((row) => ({ label: row.department, value: row.publication_participation_rate }))} formatter={percent} />
-              <MiniBarChart title="Year-over-year growth" subtitle="Growth" rows={rows.map((row) => ({ label: row.department, value: row.year_over_year_growth }))} formatter={percent} />
+              <MiniBarChart title="Publication participation rate by SoEMR department" subtitle="Publishing faculty percentage" rows={rows.map((row) => ({ label: row.department, value: row.publication_participation_rate }))} formatter={percent} />
+              <MiniBarChart title="Year-over-year research output growth by SoEMR department" subtitle="Growth percentage" rows={rows.map((row) => ({ label: row.department, value: row.year_over_year_growth }))} formatter={percent} />
             </section>
           )}
           {activeTab === 'Funding and Innovation' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Funding by department" subtitle="Funding" rows={rows.map((row) => ({ label: row.department, value: row.funding }))} formatter={money} />
-              <MiniBarChart title="Patent and IPR activity" subtitle="Innovation" rows={rows.map((row) => ({ label: row.department, value: row.patents }))} />
+              <MiniBarChart title="Sanctioned funding by SoEMR department" subtitle="Project funding amount" rows={rows.map((row) => ({ label: row.department, value: row.funding }))} formatter={money} />
+              <MiniBarChart title="Patent and IPR activity by SoEMR department" subtitle="Innovation record count" rows={rows.map((row) => ({ label: row.department, value: row.patents }))} />
             </section>
           )}
           {activeTab === 'Research Health' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Research health score breakdown" subtitle="Health score" rows={rows.map((row) => ({ label: row.department, value: row.research_health_score }))} />
+              <MiniBarChart title="Research-health score by SoEMR department" subtitle="Composite score for comparison" rows={rows.map((row) => ({ label: row.department, value: row.research_health_score }))} />
               <HealthBreakdown department={rows[0]} />
             </section>
           )}
           {activeTab === 'Gaps and Opportunities' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Departments with no patents" subtitle="Gap count" rows={noPatents.map((row) => ({ label: row.department, value: 1 }))} />
-              <MiniBarChart title="Departments needing attention" subtitle="Health category" rows={attention.map((row) => ({ label: row.department, value: row.research_health_score }))} />
+              <MiniBarChart title="SoEMR departments with no patent or IPR contribution" subtitle="Gap indicator" rows={noPatents.map((row) => ({ label: row.department, value: 1 }))} />
+              <MiniBarChart title="SoEMR departments needing research-health attention" subtitle="Low composite score" rows={attention.map((row) => ({ label: row.department, value: row.research_health_score }))} />
             </section>
           )}
 

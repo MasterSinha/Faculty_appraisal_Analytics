@@ -316,10 +316,10 @@ export default function JournalPublicationsAnalyticsPage({ sharedData, filters, 
 
           {activeTab === 'Overview' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Publications by school" subtitle="School output" rows={schoolRows} />
-              <MiniBarChart title="Publications by academic year" subtitle="Year trend" rows={yearRows} />
-              <MiniBarChart title="Indexing distribution" subtitle="Quality and indexing" rows={indexingRows} />
-              <MiniBarChart title="Top journals by paper count" subtitle="Journal concentration" rows={journalRows} />
+              <MiniBarChart title="Which schools publish the most valid journal papers" subtitle="Valid papers by school" rows={schoolRows} />
+              <MiniBarChart title="How valid journal publications changed by academic year" subtitle="Year-wise publication trend" rows={yearRows} />
+              <MiniBarChart title="How journal papers are distributed by indexing category" subtitle="Indexing quality mix" rows={indexingRows} />
+              <MiniBarChart title="Which journals have the highest paper concentration" subtitle="Top journals by valid paper count" rows={journalRows} />
             </section>
           )}
 
@@ -346,7 +346,7 @@ export default function JournalPublicationsAnalyticsPage({ sharedData, filters, 
 
           {activeTab === 'Faculty Analysis' && (
             <section className="books-analysis-grid">
-              <MiniBarChart title="Top publishing faculty" subtitle="Faculty output" rows={facultyRows.map((row) => ({ label: row.faculty_name, value: row.total }))} />
+              <MiniBarChart title="Which faculty publish the most journal papers" subtitle="Faculty publication count" rows={facultyRows.map((row) => ({ label: row.faculty_name, value: row.total }))} />
               <article className="quality-card">
                 <h2>Faculty publication segments</h2>
                 <div className="quality-grid">
@@ -361,7 +361,7 @@ export default function JournalPublicationsAnalyticsPage({ sharedData, filters, 
 
           {activeTab === 'Quality and Indexing' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Indexing category distribution" subtitle="Indexing" rows={indexingRows} />
+              <MiniBarChart title="Indexing quality mix across valid publications" subtitle="Indexed versus non-indexed papers" rows={indexingRows} />
               <article className="quality-card">
                 <h2>Quality checks</h2>
                 <div className="quality-grid">
@@ -373,8 +373,8 @@ export default function JournalPublicationsAnalyticsPage({ sharedData, filters, 
                   <span>Indexed percentage <strong>{percent(indexedPercentage)}</strong></span>
                 </div>
               </article>
-              <MiniBarChart title="Most common journals" subtitle="Journals" rows={journalRows} />
-              <MiniBarChart title="Average score by indexing type" subtitle="Reviewer score" rows={Object.entries(groupBy(publications, (record) => record.indexing)).map(([label, rows]) => ({ label, value: rows.reduce((sum, record) => sum + Number(record.score || 0), 0) / rows.length }))} formatter={(value) => value.toFixed(1)} />
+              <MiniBarChart title="Most frequently reported journals" subtitle="Journal name concentration" rows={journalRows} />
+              <MiniBarChart title="Average internal score by indexing type" subtitle="Analytics only, not shown in records table" rows={Object.entries(groupBy(publications, (record) => record.indexing)).map(([label, rows]) => ({ label, value: rows.reduce((sum, record) => sum + Number(record.score || 0), 0) / rows.length }))} formatter={(value) => value.toFixed(1)} />
             </section>
           )}
 

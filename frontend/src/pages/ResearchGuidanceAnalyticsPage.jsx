@@ -259,12 +259,12 @@ export default function ResearchGuidanceAnalyticsPage({ sharedData, filters, upd
                 <StatRing value={guidanceRate} label="Guidance Participation" color="#22c55e" />
               </div>
               <section className="executive-chart-row two-col">
-                <MiniBarChart title="Students guided by degree" subtitle="Degree mix" rows={degreeRows} />
-                <MiniBarChart title="Guidance by department" subtitle="Department guidance" rows={departmentRows} />
-                <MiniBarChart title="Guidance by school" subtitle="School guidance" rows={schoolRows} />
-                <MiniBarChart title="Guidance trend by academic year" subtitle="Academic year trend" rows={yearRows} />
-                <RankingList title="Top research supervisors" subtitle="Faculty supervisors" rows={supervisorRows} />
-                <MiniBarChart title="Publication count versus guided students" subtitle="Cross analysis" rows={[
+                <MiniBarChart title="How guided students are distributed by degree" subtitle="Normalized degree mix" rows={degreeRows} />
+                <MiniBarChart title="Which departments supervise the most research students" subtitle="Guidance records by department" rows={departmentRows} />
+                <MiniBarChart title="Which schools supervise the most research students" subtitle="Guidance records by school" rows={schoolRows} />
+                <MiniBarChart title="How guidance activity changed by academic year" subtitle="Year-wise guidance records" rows={yearRows} />
+                <RankingList title="Faculty supervising the most research students" subtitle="Supervisor leaderboard" rows={supervisorRows} />
+                <MiniBarChart title="Publishing and guidance participation comparison" subtitle="Association only" rows={[
                   { label: 'Publishing not guiding', value: publishingNotGuiding },
                   { label: 'Guiding not publishing', value: guidingNotPublishing },
                   { label: 'Guiding faculty', value: guidingFaculty },
@@ -275,16 +275,16 @@ export default function ResearchGuidanceAnalyticsPage({ sharedData, filters, upd
 
           {activeTab === 'Degree Analysis' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Students guided by degree" subtitle="Normalized degrees" rows={degreeRows} />
-              <MiniBarChart title="PhD guidance participation by department" subtitle="PhD participation" rows={departmentRows} valueKey="phdParticipation" formatter={percent} />
+              <MiniBarChart title="Guided students by normalized degree type" subtitle="PhD, PG, UG, and other" rows={degreeRows} />
+              <MiniBarChart title="PhD guidance participation rate by department" subtitle="Faculty guiding PhD scholars percentage" rows={departmentRows} valueKey="phdParticipation" formatter={percent} />
             </section>
           )}
 
           {activeTab === 'Department Analysis' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Guidance by department" subtitle="Department output" rows={departmentRows} />
-              <MiniBarChart title="Guidance participation by department" subtitle="Participation" rows={departmentRows} valueKey="participation" formatter={percent} />
-              <MiniBarChart title="Average scholars per department" subtitle="Average" rows={departmentRows} valueKey="avgScholars" formatter={(value) => value.toFixed(2)} />
+              <MiniBarChart title="Research guidance records by department" subtitle="Guided students count" rows={departmentRows} />
+              <MiniBarChart title="Guidance participation rate by department" subtitle="Guiding faculty percentage" rows={departmentRows} valueKey="participation" formatter={percent} />
+              <MiniBarChart title="Average guided students per department" subtitle="Guidance workload average" rows={departmentRows} valueKey="avgScholars" formatter={(value) => value.toFixed(2)} />
               <article className="quality-card">
                 <h2>Departments with low guidance participation</h2>
                 <div className="books-chip-list">
@@ -296,7 +296,7 @@ export default function ResearchGuidanceAnalyticsPage({ sharedData, filters, upd
 
           {activeTab === 'Faculty Supervisors' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Top research supervisors" subtitle="Supervisor leaderboard" rows={supervisorRows} />
+              <MiniBarChart title="Faculty ranked by students guided" subtitle="Supervisor leaderboard" rows={supervisorRows} />
               <article className="quality-card">
                 <h2>Supervisor patterns</h2>
                 <div className="quality-grid">
@@ -310,7 +310,7 @@ export default function ResearchGuidanceAnalyticsPage({ sharedData, filters, upd
 
           {activeTab === 'Guidance and Publications' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Publication count versus guided students" subtitle="Cross comparison" rows={[
+              <MiniBarChart title="Faculty overlap between publishing and guiding" subtitle="Publication-guidance association" rows={[
                 { label: 'Publishing but not guiding', value: publishingNotGuiding },
                 { label: 'Guiding but not publishing', value: guidingNotPublishing },
                 { label: 'Guiding faculty', value: guidingFaculty },

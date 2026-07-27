@@ -291,39 +291,39 @@ export default function ResearchAnalyticsDashboard() {
 
             <div className="chart-grid">
               <DonutChart
-                title="Publications by indexing"
-                subtitle="Research output"
+                title="How publications are distributed by indexing category"
+                subtitle="Journal quality mix"
                 rows={(data.indexing || []).map((d) => ({ label: d.indexing, value: d.total_papers || 0 }))}
                 emptyMessage="No indexing data"
               />
               <AreaTrendChart
-                title="Research paper trend"
-                subtitle="Year-wise output"
+                title="How journal publication output changed by academic year"
+                subtitle="Year-wise valid papers"
                 rows={(data.trend || []).map((d) => ({ label: d.year || d.academic_year, value: d.total_papers || 0 }))}
                 color="var(--indigo)"
               />
               <RankingList
-                title="Publications by school"
-                subtitle="School analytics"
+                title="Which schools contribute the most publications"
+                subtitle="Valid journal papers by school"
                 rows={schoolPublicationRows}
                 emptyMessage="No school publication data"
               />
               <HeatmapChart
-                title="Participation rate by department"
-                subtitle="Participation"
+                title="Which departments have the broadest publishing participation"
+                subtitle="Publishing faculty percentage"
                 rows={depts.map((d) => ({ label: d.department, participation: Number(d.publication_participation_percentage || 0).toFixed(0) }))}
                 categories={['participation']}
                 formatter={(v) => `${v}%`}
               />
               <RankingList
-                title="Research funding by dept"
-                subtitle="Project funding"
+                title="Which departments receive the most sanctioned funding"
+                subtitle="Project funding amount"
                 rows={depts.map((d) => ({ label: d.department, value: Number(d.total_project_funding || 0) }))}
                 formatter={fmtInr}
               />
               <DonutChart
-                title="Patent status"
-                subtitle="Innovation"
+                title="How patents are split by approval status"
+                subtitle="Granted versus pending"
                 rows={[
                   { label: 'Granted', value: Number(ov.patents_granted || 0) },
                   { label: 'Pending', value: Math.max(Number(ov.total_patents || 0) - Number(ov.patents_granted || 0), 0) },
@@ -334,16 +334,16 @@ export default function ResearchAnalyticsDashboard() {
 
             <section className="executive-chart-row">
               <RadarChart
-                title="University Research Profile"
-                subtitle="Institutional dimensions"
+                title="University research strength across core areas"
+                subtitle="Category-level institutional profile"
                 axes={radarAxes}
                 rows={radarRows}
               />
             </section>
 
             <ComparisonTiles
-              title="Research snapshot"
-              subtitle="Key comparisons"
+              title="Quick interpretation of institutional research health"
+              subtitle="Management summary"
               items={[
                 { label: 'Publishing Faculty', value: pub, subtext: `of ${active} active`, color: '#6366f1' },
                 { label: 'Participation Rate', value: pct(partPct), color: '#22c55e', badge: partPct >= 50 ? '✓ Good' : '⚠ Low' },

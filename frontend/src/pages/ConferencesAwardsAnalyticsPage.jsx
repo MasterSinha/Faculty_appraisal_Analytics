@@ -305,44 +305,44 @@ export default function ConferencesAwardsAnalyticsPage({ sharedData, filters, up
                 <StatRing value={activeFaculty ? (awardFaculty.size / activeFaculty) * 100 : 0} label="Award Participation" color="#f59e0b" />
               </div>
               <section className="executive-chart-row two-col">
-                <MiniBarChart title="Conference trend" subtitle="Academic year" rows={conferenceYearRows} />
-                <MiniBarChart title="Conference level distribution" subtitle="Level mix" rows={conferenceLevelRows} />
-                <RankingList title="Top conference departments" subtitle="Department participation" rows={conferenceDepartmentRows} />
-                <MiniBarChart title="Awards by department" subtitle="Department recognition" rows={awardDepartmentRows} />
-                <MiniBarChart title="Awards by level" subtitle="Recognition level" rows={awardLevelRows} />
-                <MiniBarChart title="Conference participation versus publication output" subtitle="Department association" rows={associationRows} formatter={(value) => `${value} conf`} />
-                <MiniBarChart title="Top organising institutions or awarding agencies" subtitle="External bodies" rows={[...organisationRows.slice(0, 5), ...awardAgencyRows.slice(0, 5)]} />
+                <MiniBarChart title="How conference activity changed by academic year" subtitle="Year-wise conference records" rows={conferenceYearRows} />
+                <MiniBarChart title="Conference records by activity level" subtitle="National, international, and other levels" rows={conferenceLevelRows} />
+                <RankingList title="Departments with the most conference activity" subtitle="Conference records by department" rows={conferenceDepartmentRows} />
+                <MiniBarChart title="Departments with the most award records" subtitle="Award records by department" rows={awardDepartmentRows} />
+                <MiniBarChart title="Award records by recognition level" subtitle="Award level mix" rows={awardLevelRows} />
+                <MiniBarChart title="Conference participation compared with publication output" subtitle="Department association only" rows={associationRows} formatter={(value) => `${value} conf`} />
+                <MiniBarChart title="Most common organising institutions and awarding agencies" subtitle="External body concentration" rows={[...organisationRows.slice(0, 5), ...awardAgencyRows.slice(0, 5)]} />
               </section>
             </>
           )}
 
           {activeTab === 'Conferences' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Conferences by department" subtitle="Department" rows={conferenceDepartmentRows} />
-              <MiniBarChart title="Conferences by school" subtitle="School" rows={conferenceSchoolRows} />
-              <MiniBarChart title="Conferences by academic year" subtitle="Year" rows={conferenceYearRows} />
-              <MiniBarChart title="Conferences by type" subtitle="Type" rows={conferenceTypeRows} />
-              <MiniBarChart title="National versus international participation" subtitle="Level" rows={conferenceLevelRows} />
-              <MiniBarChart title="Top organising institutions" subtitle="Organisers" rows={organisationRows} />
+              <MiniBarChart title="Conference records by department" subtitle="Department activity count" rows={conferenceDepartmentRows} />
+              <MiniBarChart title="Conference records by school" subtitle="School activity count" rows={conferenceSchoolRows} />
+              <MiniBarChart title="Conference records by academic year" subtitle="Year-wise activity" rows={conferenceYearRows} />
+              <MiniBarChart title="Conference records by activity type" subtitle="Conference type mix" rows={conferenceTypeRows} />
+              <MiniBarChart title="National versus international conference participation" subtitle="Level mix" rows={conferenceLevelRows} />
+              <MiniBarChart title="Most common conference organising institutions" subtitle="Organiser concentration" rows={organisationRows} />
             </section>
           )}
 
           {activeTab === 'Awards' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Awards by department" subtitle="Department" rows={awardDepartmentRows} />
-              <MiniBarChart title="Awards by school" subtitle="School" rows={awardSchoolRows} />
-              <MiniBarChart title="Awards by level" subtitle="Level" rows={awardLevelRows} />
-              <MiniBarChart title="Awards by agency" subtitle="Agency" rows={awardAgencyRows} />
-              <MiniBarChart title="Awards by academic year" subtitle="Year" rows={awardYearRows} />
-              <MiniBarChart title="Top award-receiving faculty" subtitle="Faculty" rows={awardFacultyRows} />
+              <MiniBarChart title="Award records by department" subtitle="Department recognition count" rows={awardDepartmentRows} />
+              <MiniBarChart title="Award records by school" subtitle="School recognition count" rows={awardSchoolRows} />
+              <MiniBarChart title="Award records by level" subtitle="Recognition level mix" rows={awardLevelRows} />
+              <MiniBarChart title="Award records by awarding agency" subtitle="Agency concentration" rows={awardAgencyRows} />
+              <MiniBarChart title="Award records by academic year" subtitle="Year-wise recognition" rows={awardYearRows} />
+              <MiniBarChart title="Faculty receiving the most awards" subtitle="Award recipient ranking" rows={awardFacultyRows} />
             </section>
           )}
 
           {activeTab === 'Department Comparison' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Conferences by department" subtitle="Conference comparison" rows={conferenceDepartmentRows} />
-              <MiniBarChart title="Awards by department" subtitle="Award comparison" rows={awardDepartmentRows} />
-              <MiniBarChart title="Conference participation versus publication output" subtitle="Association only" rows={associationRows} formatter={(value) => `${value} conf`} />
+              <MiniBarChart title="Department conference activity comparison" subtitle="Conference records by department" rows={conferenceDepartmentRows} />
+              <MiniBarChart title="Department award activity comparison" subtitle="Award records by department" rows={awardDepartmentRows} />
+              <MiniBarChart title="Conference activity compared with publication output" subtitle="Association only, not causation" rows={associationRows} formatter={(value) => `${value} conf`} />
               <InsightCard title="Department observations" items={[
                 { label: 'High conference, low publication departments', value: highConferenceLowPublication },
                 { label: 'Conference departments represented', value: conferenceDepartmentRows.length },
@@ -353,8 +353,8 @@ export default function ConferencesAwardsAnalyticsPage({ sharedData, filters, up
 
           {activeTab === 'Faculty Details' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Faculty with conference activities" subtitle="Top faculty" rows={conferenceFacultyRows} />
-              <MiniBarChart title="Top award-receiving faculty" subtitle="Recognition" rows={awardFacultyRows} />
+              <MiniBarChart title="Faculty ranked by conference activity records" subtitle="Conference participation count" rows={conferenceFacultyRows} />
+              <MiniBarChart title="Faculty ranked by award records" subtitle="Award recipient count" rows={awardFacultyRows} />
               <InsightCard title="Faculty analytics" items={[
                 { label: 'Faculty with multiple conference activities', value: multiConferenceFaculty },
                 { label: 'Award receiving faculty', value: awardFaculty.size },

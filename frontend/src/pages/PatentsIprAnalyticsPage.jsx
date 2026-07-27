@@ -349,18 +349,18 @@ export default function PatentsIprAnalyticsPage({ sharedData, filters, updateFil
           {activeTab === 'Patent Overview' && (
             <section className="executive-chart-row two-col">
               <StatusDonut title="Patent status distribution" rows={statusRows} />
-              <MiniBarChart title="Patent trend by patent date" subtitle="Year trend" rows={yearRows} />
-              <MiniBarChart title="Patents by department" subtitle="Department output" rows={departmentRows} />
-              <MiniBarChart title="Patents by school" subtitle="School output" rows={schoolRows} />
-              <MiniBarChart title="Domestic versus international patents" subtitle="Scope" rows={scopeRows} />
-              <MiniBarChart title="Top patent-contributing faculty" subtitle="Faculty contribution" rows={facultyRows} />
+              <MiniBarChart title="How patent filings changed by patent date year" subtitle="Year-wise patent trend" rows={yearRows} />
+              <MiniBarChart title="Which departments contribute the most valid patents" subtitle="Patent count by department" rows={departmentRows} />
+              <MiniBarChart title="Which schools contribute the most valid patents" subtitle="Patent count by school" rows={schoolRows} />
+              <MiniBarChart title="Patent scope split: domestic versus international" subtitle="Normalized patent scope" rows={scopeRows} />
+              <MiniBarChart title="Which faculty file the most patents" subtitle="Patent count by faculty" rows={facultyRows} />
             </section>
           )}
 
           {activeTab === 'Patent Status' && (
             <section className="executive-chart-row two-col">
               <StatusDonut title="Patent status distribution" rows={statusRows} />
-              <MiniBarChart title="Granted patent share by school" subtitle="Grant share" rows={schoolRows} valueKey="grantedShare" formatter={percent} />
+              <MiniBarChart title="Which schools have the highest granted patent share" subtitle="Granted patents as percentage of valid patents" rows={schoolRows} valueKey="grantedShare" formatter={percent} />
               <FlagPanel flags={[
                 { label: 'Missing status', value: missingStatus },
                 { label: 'Duplicate file number', value: duplicateFileNos },
@@ -373,7 +373,7 @@ export default function PatentsIprAnalyticsPage({ sharedData, filters, updateFil
           {activeTab === 'IPR Analytics' && (
             <section className="executive-chart-row two-col">
               <StatusDonut title="IPR status distribution" rows={iprStatusRows} />
-              <MiniBarChart title="IPR records by department" subtitle="IPR contribution" rows={Object.entries(groupBy(iprRecords, (record) => departmentLabel(record))).map(([label, rows]) => ({ label, value: rows.length }))} />
+              <MiniBarChart title="Which departments report the most IPR records" subtitle="IPR record count by department" rows={Object.entries(groupBy(iprRecords, (record) => departmentLabel(record))).map(([label, rows]) => ({ label, value: rows.length }))} />
               <article className="quality-card">
                 <h2>Departments with no IPR contribution</h2>
                 <div className="books-chip-list">{noIprDepartments.map((department) => <span key={department}>{department}</span>)}</div>
@@ -383,8 +383,8 @@ export default function PatentsIprAnalyticsPage({ sharedData, filters, updateFil
 
           {activeTab === 'Faculty Participation' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Patent participation by department" subtitle="Participation" rows={departmentRows} valueKey="participation" formatter={percent} />
-              <MiniBarChart title="Top patent-contributing faculty" subtitle="Faculty leaderboard" rows={facultyRows} />
+              <MiniBarChart title="Patent-filing participation rate by department" subtitle="Faculty filing patents percentage" rows={departmentRows} valueKey="participation" formatter={percent} />
+              <MiniBarChart title="Faculty ranked by valid patent count" subtitle="Patent contribution leaderboard" rows={facultyRows} />
               <article className="quality-card">
                 <h2>Participation analytics</h2>
                 <div className="quality-grid">

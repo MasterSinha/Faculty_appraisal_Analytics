@@ -240,14 +240,14 @@ export default function ResearchDataQualityPage({ filters, updateFilters, refres
 
           {activeTab === 'Completeness by Department' ? (
             <section className="executive-chart-row two-col">
-              <RankingList title="Completeness by department" subtitle="Completeness" rows={departmentRows} valueKey="completeness" formatter={percent} />
-              <MiniBarChart title="Alerts by department" subtitle="Department" rows={departmentRows} />
+              <RankingList title="Data completeness percentage by department" subtitle="Completeness ranking" rows={departmentRows} valueKey="completeness" formatter={percent} />
+              <MiniBarChart title="Data-quality alert count by department" subtitle="Issue volume by department" rows={departmentRows} />
             </section>
           ) : (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Alerts by severity" subtitle="Severity groups" rows={severityRows} />
-              <MiniBarChart title="Alerts by category" subtitle="Research category" rows={categoryRows} />
-              <MiniBarChart title="Missing information by department" subtitle="Missing fields" rows={departmentRows} />
+              <MiniBarChart title="Data-quality alerts by severity group" subtitle="Critical, warning, informational" rows={severityRows} />
+              <MiniBarChart title="Data-quality alerts by research category" subtitle="Issue category mix" rows={categoryRows} />
+              <MiniBarChart title="Missing mandatory information by department" subtitle="Missing field issue count" rows={departmentRows} />
             </section>
           )}
 

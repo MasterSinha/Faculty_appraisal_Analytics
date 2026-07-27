@@ -274,15 +274,15 @@ export default function BooksAnalyticsPage({ sharedData, filters, updateFilters,
 
           {activeTab === 'Overview' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Book publications by department" subtitle="Department output" rows={departmentRows} />
-              <MiniBarChart title="Books by academic year" subtitle="Year trend" rows={yearRows} />
-              <MiniBarChart title="Top publishers" subtitle="Publisher concentration" rows={publisherRows} />
-              <MiniBarChart title="First-author vs co-authored" subtitle="Authorship" rows={[
+              <MiniBarChart title="Which departments contribute the most book records" subtitle="Valid book records by department" rows={departmentRows} />
+              <MiniBarChart title="How book publication records changed by academic year" subtitle="Year-wise book trend" rows={yearRows} />
+              <MiniBarChart title="Which publishers appear most often" subtitle="Publisher concentration" rows={publisherRows} />
+              <MiniBarChart title="How authorship is split between first-author and co-authored records" subtitle="Approximate authorship mix" rows={[
                 { label: 'First author', value: firstAuthor },
                 { label: 'Co-authored', value: coauthored },
               ]} />
-              <MiniBarChart title="Book participation by department" subtitle="Participation" rows={departmentRows} valueKey="participation" formatter={percent} />
-              <MiniBarChart title="Faculty publishing journals and books" subtitle="Cross-category" rows={[
+              <MiniBarChart title="Which departments have broader book publication participation" subtitle="Publishing faculty percentage" rows={departmentRows} valueKey="participation" formatter={percent} />
+              <MiniBarChart title="Faculty publishing both journals and books" subtitle="Cross-category participation" rows={[
                 { label: 'Both journals and books', value: bothJournalAndBooks },
                 { label: 'Books only', value: booksNoJournals },
               ]} />
@@ -291,8 +291,8 @@ export default function BooksAnalyticsPage({ sharedData, filters, updateFilters,
 
           {activeTab === 'Department Analysis' && (
             <section className="books-analysis-grid">
-              <MiniBarChart title="Department book contribution" subtitle="Book analytics" rows={departmentRows} />
-              <MiniBarChart title="School-wise book participation" subtitle="School analytics" rows={schoolRows} valueKey="participation" formatter={percent} />
+              <MiniBarChart title="Department contribution to valid book records" subtitle="Book output count" rows={departmentRows} />
+              <MiniBarChart title="Book participation rate by school" subtitle="School-wise faculty participation" rows={schoolRows} valueKey="participation" formatter={percent} />
               <article className="chart-card books-chart-card">
                 <div className="card-title"><span>Gaps</span><h2>Departments with no book contribution</h2></div>
                 <div className="books-chip-list">
@@ -304,7 +304,7 @@ export default function BooksAnalyticsPage({ sharedData, filters, updateFilters,
 
           {activeTab === 'Publishers and ISBN' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="Most frequently used publishers" subtitle="Publishers" rows={publisherRows} />
+              <MiniBarChart title="Publishers used most frequently in book records" subtitle="Publisher concentration" rows={publisherRows} />
               <article className="quality-card">
                 <h2>ISBN Quality</h2>
                 <div className="quality-grid">
@@ -319,7 +319,7 @@ export default function BooksAnalyticsPage({ sharedData, filters, updateFilters,
 
           {activeTab === 'Authorship and Collaboration' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="First-author versus co-authored contribution" subtitle="Approximate analysis" rows={[
+              <MiniBarChart title="Approximate authorship pattern in book records" subtitle="First-author, co-authored, and unspecified" rows={[
                 { label: 'First author', value: firstAuthor },
                 { label: 'Co-authored', value: coauthored },
                 { label: 'Unspecified', value: Math.max(books.length - firstAuthor - coauthored, 0) },

@@ -469,14 +469,14 @@ export default function ProjectsFundingAnalyticsPage({ sharedData, filters, upda
                 <SparklineRow values={trendRows.map((row) => Number(row.value || 0))} color="#06b6d4" label="Funding trend" />
               </div>
               <section className="executive-chart-row two-col">
-                <BubbleCloudChart title="Funding by department" subtitle="Department funding" rows={departmentFunding} formatter={money} />
-                <DonutChart title="Funding by school" subtitle="School funding share" rows={schoolFunding} formatter={money} />
-                <RankingList title="Top funding agencies" subtitle="Agency concentration" rows={agencyFunding} formatter={money} badgeKey="count" badgeFormatter={formatNumber} />
-                <ComparisonTiles title="Internal versus external funding" subtitle="Funding source" rows={[
+                <BubbleCloudChart title="Which departments receive the most sanctioned funding" subtitle="Sanctioned amount by department" rows={departmentFunding} formatter={money} />
+                <DonutChart title="How sanctioned funding is distributed by school" subtitle="School funding share" rows={schoolFunding} formatter={money} />
+                <RankingList title="Which agencies sanction the most funding" subtitle="Agency funding concentration" rows={agencyFunding} formatter={money} badgeKey="count" badgeFormatter={formatNumber} />
+                <ComparisonTiles title="Funding source split: internal versus external" subtitle="Sanctioned project funding source" rows={[
                   { label: 'Internal / unspecified', value: Math.max(totalSanctioned - externalFunding, 0) },
                   { label: 'External', value: externalFunding },
                 ]} formatter={money} />
-                <AreaTrendChart title="Funding trend by sanction date" subtitle="Funding trend" rows={trendRows} formatter={money} />
+                <AreaTrendChart title="How sanctioned funding changed by sanction year" subtitle="Year-wise sanctioned amount" rows={trendRows} formatter={money} />
                 <RatioCard title="Funding concentration" items={[
                   { label: 'Top five faculty funding share', value: percent(topFiveFacultyShare) },
                   { label: 'Top five department funding share', value: percent(topFiveDepartmentShare) },
@@ -489,8 +489,8 @@ export default function ProjectsFundingAnalyticsPage({ sharedData, filters, upda
 
           {activeTab === 'Research Projects' && (
             <section className="executive-chart-row two-col">
-              <DonutChart title="Project status distribution" subtitle="Status" rows={statusRows} />
-              <MiniBarChart title="Funding by faculty" subtitle="Faculty funding" rows={facultyFunding} formatter={money} />
+              <DonutChart title="How projects are distributed by normalized status" subtitle="Project lifecycle status" rows={statusRows} />
+              <MiniBarChart title="Which faculty receive the most sanctioned project funding" subtitle="Faculty funding ranking" rows={facultyFunding} formatter={money} />
               <RatioCard title="Project health" items={[
                 { label: 'Ongoing projects', value: ongoing },
                 { label: 'Completed projects', value: completed },
@@ -502,8 +502,8 @@ export default function ProjectsFundingAnalyticsPage({ sharedData, filters, upda
 
           {activeTab === 'External Projects' && (
             <section className="executive-chart-row two-col">
-              <MiniBarChart title="External funding by agency" subtitle="External projects" rows={Object.entries(groupBy(externalProjects, (record) => record.agency)).map(([label, rows]) => ({ label, value: sumAmount(rows) }))} formatter={money} />
-              <MiniBarChart title="External funding by school" subtitle="External share" rows={Object.entries(groupBy(externalProjects, (record) => record.school)).map(([label, rows]) => ({ label, value: sumAmount(rows) }))} formatter={money} />
+              <MiniBarChart title="Which agencies provide the most external funding" subtitle="External project amount by agency" rows={Object.entries(groupBy(externalProjects, (record) => record.agency)).map(([label, rows]) => ({ label, value: sumAmount(rows) }))} formatter={money} />
+              <MiniBarChart title="Which schools receive the most external funding" subtitle="External project amount by school" rows={Object.entries(groupBy(externalProjects, (record) => record.school)).map(([label, rows]) => ({ label, value: sumAmount(rows) }))} formatter={money} />
               <RatioCard title="External project gaps" items={[
                 { label: 'External funding percentage', value: percent(externalFundingPct) },
                 { label: 'Schools with no external projects', value: schoolsWithNoExternal },
@@ -513,8 +513,8 @@ export default function ProjectsFundingAnalyticsPage({ sharedData, filters, upda
 
           {activeTab === 'Proposals' && (
             <section className="executive-chart-row two-col">
-              <AreaTrendChart title="Proposal trend by academic year" subtitle="Proposal trend" rows={proposalTrendRows} />
-              <BubbleCloudChart title="Proposal amount by agency" subtitle="Proposed funding" rows={Object.entries(groupBy(proposals, (record) => record.agency)).map(([label, rows]) => ({ label, value: sumAmount(rows), count: rows.length }))} formatter={money} />
+              <AreaTrendChart title="How proposed funding activity changed by academic year" subtitle="Proposal count trend" rows={proposalTrendRows} />
+              <BubbleCloudChart title="Which agencies receive the largest proposed funding requests" subtitle="Proposal amount by agency" rows={Object.entries(groupBy(proposals, (record) => record.agency)).map(([label, rows]) => ({ label, value: sumAmount(rows), count: rows.length }))} formatter={money} />
               <RatioCard title="Proposal conversion indicators" items={[
                 { label: 'Proposal-to-project indicator', value: percent(proposalToProject) },
                 { label: 'Departments with proposals but no funded projects', value: departmentsWithProposalsNoProjects },
@@ -525,16 +525,16 @@ export default function ProjectsFundingAnalyticsPage({ sharedData, filters, upda
 
           {activeTab === 'Funding Agencies' && (
             <section className="executive-chart-row two-col">
-              <RankingList title="Top funding agencies" subtitle="Agency funding" rows={agencyFunding} formatter={money} badgeKey="count" badgeFormatter={formatNumber} />
-              <DonutChart title="Project count by agency" subtitle="Agency project count" rows={agencyFunding} valueKey="count" />
+              <RankingList title="Agencies ranked by sanctioned funding amount" subtitle="Funding amount and project count" rows={agencyFunding} formatter={money} badgeKey="count" badgeFormatter={formatNumber} />
+              <DonutChart title="Agency share by funded project count" subtitle="Number of funded projects" rows={agencyFunding} valueKey="count" />
             </section>
           )}
 
           {activeTab === 'Faculty and Department Funding' && (
             <section className="executive-chart-row two-col">
-              <RankingList title="Top funded faculty" subtitle="Faculty funding" rows={facultyFunding} formatter={money} />
-              <MiniBarChart title="Funding by faculty" subtitle="Faculty funding" rows={facultyFunding} formatter={money} />
-              <MiniBarChart title="Funding by department" subtitle="Department funding" rows={departmentFunding} formatter={money} />
+              <RankingList title="Faculty ranked by sanctioned funding received" subtitle="Faculty funding leaderboard" rows={facultyFunding} formatter={money} />
+              <MiniBarChart title="Sanctioned funding amount by faculty" subtitle="Faculty funding comparison" rows={facultyFunding} formatter={money} />
+              <MiniBarChart title="Sanctioned funding amount by department" subtitle="Department funding comparison" rows={departmentFunding} formatter={money} />
               <RatioCard title="Participation and role analytics" items={[
                 { label: 'Faculty receiving funding', value: fundedFaculty.size },
                 { label: 'Principal investigators', value: piCount },
