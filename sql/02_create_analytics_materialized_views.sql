@@ -59,7 +59,7 @@ project_summary AS (
         ) AS rn
       FROM (
         SELECT 'research_projects' AS source_table, id, faculty_email, title, amount, score, role, project_status, FALSE AS external_project,
-               COALESCE(NULLIF(TRIM(file_no), ''), LOWER(TRIM(title)) || '|' || COALESCE(amount::text, '0') || '|' || LOWER(TRIM(COALESCE(agency, '')))) AS project_key
+               MD5(LOWER(TRIM(title)) || '|' || COALESCE(amount::text, '0') || '|' || LOWER(TRIM(COALESCE(agency, '')))) AS project_key
         FROM research_projects
         WHERE NULLIF(TRIM(title), '') IS NOT NULL
           AND (COALESCE(TRIM(project_status), '') = '' OR LOWER(COALESCE(project_status, '')) SIMILAR TO '%(sanction|ongoing|complete|closed|approved|active|grant)%')
@@ -68,7 +68,7 @@ project_summary AS (
         UNION ALL
 
         SELECT 'external_research_projects' AS source_table, id, faculty_email, title, amount, 0::numeric AS score, '' AS role, project_status, TRUE AS external_project,
-               COALESCE(NULLIF(TRIM(file_no), ''), LOWER(TRIM(title)) || '|' || COALESCE(amount::text, '0') || '|' || LOWER(TRIM(COALESCE(agency, '')))) AS project_key
+               MD5(LOWER(TRIM(title)) || '|' || COALESCE(amount::text, '0') || '|' || LOWER(TRIM(COALESCE(agency, '')))) AS project_key
         FROM external_research_projects
         WHERE NULLIF(TRIM(title), '') IS NOT NULL
           AND (COALESCE(TRIM(project_status), '') = '' OR LOWER(COALESCE(project_status, '')) SIMILAR TO '%(sanction|ongoing|complete|closed|approved|active|grant)%')
@@ -236,7 +236,7 @@ WITH year_union AS (
         ) AS rn
       FROM (
         SELECT 'research_projects' AS source_table, id, faculty_email, title, amount, academic_year, role, project_status,
-               COALESCE(NULLIF(TRIM(file_no), ''), LOWER(TRIM(title)) || '|' || COALESCE(amount::text, '0') || '|' || LOWER(TRIM(COALESCE(agency, '')))) AS project_key
+               MD5(LOWER(TRIM(title)) || '|' || COALESCE(amount::text, '0') || '|' || LOWER(TRIM(COALESCE(agency, '')))) AS project_key
         FROM research_projects
         WHERE NULLIF(TRIM(title), '') IS NOT NULL
           AND (COALESCE(TRIM(project_status), '') = '' OR LOWER(COALESCE(project_status, '')) SIMILAR TO '%(sanction|ongoing|complete|closed|approved|active|grant)%')
@@ -245,7 +245,7 @@ WITH year_union AS (
         UNION ALL
 
         SELECT 'external_research_projects' AS source_table, id, faculty_email, title, amount, academic_year, '' AS role, project_status,
-               COALESCE(NULLIF(TRIM(file_no), ''), LOWER(TRIM(title)) || '|' || COALESCE(amount::text, '0') || '|' || LOWER(TRIM(COALESCE(agency, '')))) AS project_key
+               MD5(LOWER(TRIM(title)) || '|' || COALESCE(amount::text, '0') || '|' || LOWER(TRIM(COALESCE(agency, '')))) AS project_key
         FROM external_research_projects
         WHERE NULLIF(TRIM(title), '') IS NOT NULL
           AND (COALESCE(TRIM(project_status), '') = '' OR LOWER(COALESCE(project_status, '')) SIMILAR TO '%(sanction|ongoing|complete|closed|approved|active|grant)%')
