@@ -1,6 +1,6 @@
 -- =============================================================================
--- FACULTY RESEARCH ANALYTICS - MATERIALIZED VIEWS (SCHEMA SAFE)
--- Pre-aggregated summary views matching live PostgreSQL schema
+-- FACULTY RESEARCH ANALYTICS - MATERIALIZED VIEWS (EXACT SCHEMA MATCH)
+-- Pre-aggregated summary views matching live PostgreSQL table columns
 -- =============================================================================
 
 -- 1. MATERIALIZED VIEW: Faculty Research Summary
@@ -15,21 +15,21 @@ SELECT
     fp.designation,
     fp.is_active,
     
-    COUNT(DISTINCT jp.id) FILTER (WHERE COALESCE(NULLIF(TRIM(jp.journal_name), ''), NULLIF(TRIM(jp.title), '')) IS NOT NULL) AS total_journals,
-    COUNT(DISTINCT bp.id) FILTER (WHERE COALESCE(NULLIF(TRIM(bp.book_title), ''), NULLIF(TRIM(bp.title), '')) IS NOT NULL) AS total_books,
-    COUNT(DISTINCT p.id) FILTER (WHERE COALESCE(NULLIF(TRIM(p.patent_title), ''), NULLIF(TRIM(p.title), '')) IS NOT NULL) AS total_patents,
-    COUNT(DISTINCT p.id) FILTER (WHERE LOWER(COALESCE(p.status, p.patent_status, '')) LIKE '%grant%') AS patents_granted,
-    COUNT(DISTINCT ipr.id) FILTER (WHERE COALESCE(NULLIF(TRIM(ipr.title), ''), '') IS NOT NULL) AS total_ipr,
-    COUNT(DISTINCT rp.id) FILTER (WHERE COALESCE(NULLIF(TRIM(rp.project_title), ''), NULLIF(TRIM(rp.title), '')) IS NOT NULL) AS total_projects,
+    COUNT(DISTINCT jp.id) FILTER (WHERE jp.title IS NOT NULL AND TRIM(jp.title) <> '') AS total_journals,
+    COUNT(DISTINCT bp.id) FILTER (WHERE COALESCE(NULLIF(TRIM(bp.title), ''), NULLIF(TRIM(bp.book), '')) IS NOT NULL) AS total_books,
+    COUNT(DISTINCT p.id) FILTER (WHERE p.title IS NOT NULL AND TRIM(p.title) <> '') AS total_patents,
+    COUNT(DISTINCT p.id) FILTER (WHERE LOWER(COALESCE(p.patent_status, '')) LIKE '%grant%') AS patents_granted,
+    COUNT(DISTINCT ipr.id) FILTER (WHERE ipr.title IS NOT NULL AND TRIM(ipr.title) <> '') AS total_ipr,
+    COUNT(DISTINCT rp.id) FILTER (WHERE rp.title IS NOT NULL AND TRIM(rp.title) <> '') AS total_projects,
     COALESCE(SUM(DISTINCT rp.amount), 0) AS total_funding,
-    COUNT(DISTINCT rp.id) FILTER (WHERE LOWER(COALESCE(rp.agency, rp.funding_agency, '')) NOT LIKE '%internal%') AS external_projects,
-    COALESCE(SUM(DISTINCT CASE WHEN LOWER(COALESCE(rp.agency, rp.funding_agency, '')) NOT LIKE '%internal%' THEN rp.amount ELSE 0 END), 0) AS external_funding,
-    COUNT(DISTINCT rpr.id) FILTER (WHERE COALESCE(NULLIF(TRIM(rpr.proposal_title), ''), NULLIF(TRIM(rpr.title), '')) IS NOT NULL) AS total_proposals,
+    COUNT(DISTINCT rp.id) FILTER (WHERE LOWER(COALESCE(rp.agency, '')) NOT LIKE '%internal%') AS external_projects,
+    COALESCE(SUM(DISTINCT CASE WHEN LOWER(COALESCE(rp.agency, '')) NOT LIKE '%internal%' THEN rp.amount ELSE 0 END), 0) AS external_funding,
+    COUNT(DISTINCT rpr.id) FILTER (WHERE rpr.title IS NOT NULL AND TRIM(rpr.title) <> '') AS total_proposals,
     COALESCE(SUM(DISTINCT rpr.amount), 0) AS total_proposal_amount,
     COUNT(DISTINCT rg.id) AS total_scholars_guided,
-    COUNT(DISTINCT c.id) FILTER (WHERE NULLIF(TRIM(c.title), '') IS NOT NULL) AS total_conferences,
-    COUNT(DISTINCT a.id) FILTER (WHERE NULLIF(TRIM(a.title), '') IS NOT NULL) AS total_awards,
-    COUNT(DISTINCT pd.id) FILTER (WHERE NULLIF(TRIM(pd.details), '') IS NOT NULL) AS total_products,
+    COUNT(DISTINCT c.id) FILTER (WHERE c.title IS NOT NULL AND TRIM(c.title) <> '') AS total_conferences,
+    COUNT(DISTINCT a.id) FILTER (WHERE a.title IS NOT NULL AND TRIM(a.title) <> '') AS total_awards,
+    COUNT(DISTINCT pd.id) FILTER (WHERE pd.details IS NOT NULL AND TRIM(pd.details) <> '') AS total_products,
     
     (COALESCE(SUM(DISTINCT jp.score), 0) + COALESCE(SUM(DISTINCT bp.score), 0) + COALESCE(SUM(DISTINCT p.score), 0) + COALESCE(SUM(DISTINCT rp.score), 0)) AS total_research_score
 FROM faculty_profiles fp
@@ -105,13 +105,13 @@ CREATE UNIQUE INDEX idx_mv_school_summary_school ON mv_research_school_summary(s
 DROP MATERIALIZED VIEW IF EXISTS mv_research_yearly_trend CASCADE;
 CREATE MATERIALIZED VIEW mv_research_yearly_trend AS
 WITH yearly_data AS (
-    SELECT academic_year::text AS academic_year, 'journal' AS category, id::text AS rec_id, 0::numeric AS amount FROM journal_publications WHERE academic_year IS NOT NULL
+    SELECT academic_year::text AS academic_year, 'journal' AS category, id::text AS rec_id, 0::numeric AS amount FROM journal_publications WHERE academic_year IS NOT NULL AND TRIM(academic_year) <> ''
     UNION ALL
-    SELECT academic_year::text, 'book', id::text, 0::numeric FROM book_publications WHERE academic_year IS NOT NULL
+    SELECT academic_year::text, 'book', id::text, 0::numeric FROM book_publications WHERE academic_year IS NOT NULL AND TRIM(academic_year) <> ''
     UNION ALL
-    SELECT academic_year::text, 'patent', id::text, 0::numeric FROM patents WHERE academic_year IS NOT NULL
+    SELECT academic_year::text, 'patent', id::text, 0::numeric FROM patents WHERE academic_year IS NOT NULL AND TRIM(academic_year) <> ''
     UNION ALL
-    SELECT academic_year::text, 'project', id::text, COALESCE(amount, 0) FROM research_projects WHERE academic_year IS NOT NULL
+    SELECT academic_year::text, 'project', id::text, COALESCE(amount, 0) FROM research_projects WHERE academic_year IS NOT NULL AND TRIM(academic_year) <> ''
 )
 SELECT 
     academic_year,
@@ -130,17 +130,17 @@ CREATE UNIQUE INDEX idx_mv_yearly_trend_year ON mv_research_yearly_trend(academi
 -- 5. MATERIALIZED VIEW: Category Summary
 DROP MATERIALIZED VIEW IF EXISTS mv_research_category_summary CASCADE;
 CREATE MATERIALIZED VIEW mv_research_category_summary AS
-SELECT 'journal_publication' AS category, COUNT(*) AS count, COALESCE(SUM(score), 0) AS total_score, 0::numeric AS total_amount FROM journal_publications WHERE COALESCE(NULLIF(TRIM(journal_name), ''), NULLIF(TRIM(title), '')) IS NOT NULL
+SELECT 'journal_publication' AS category, COUNT(*) AS count, COALESCE(SUM(score), 0) AS total_score, 0::numeric AS total_amount FROM journal_publications WHERE title IS NOT NULL AND TRIM(title) <> ''
 UNION ALL
-SELECT 'book_publication' AS category, COUNT(*), COALESCE(SUM(score), 0), 0::numeric FROM book_publications WHERE COALESCE(NULLIF(TRIM(book_title), ''), NULLIF(TRIM(title), '')) IS NOT NULL
+SELECT 'book_publication' AS category, COUNT(*), COALESCE(SUM(score), 0), 0::numeric FROM book_publications WHERE COALESCE(NULLIF(TRIM(title), ''), NULLIF(TRIM(book), '')) IS NOT NULL
 UNION ALL
-SELECT 'patent' AS category, COUNT(*), COALESCE(SUM(score), 0), 0::numeric FROM patents WHERE COALESCE(NULLIF(TRIM(patent_title), ''), NULLIF(TRIM(title), '')) IS NOT NULL
+SELECT 'patent' AS category, COUNT(*), COALESCE(SUM(score), 0), 0::numeric FROM patents WHERE title IS NOT NULL AND TRIM(title) <> ''
 UNION ALL
-SELECT 'ipr' AS category, COUNT(*), COALESCE(SUM(score), 0), 0::numeric FROM ipr_records WHERE NULLIF(TRIM(title), '') IS NOT NULL
+SELECT 'ipr' AS category, COUNT(*), COALESCE(SUM(score), 0), 0::numeric FROM ipr_records WHERE title IS NOT NULL AND TRIM(title) <> ''
 UNION ALL
-SELECT 'research_project' AS category, COUNT(*), COALESCE(SUM(score), 0), COALESCE(SUM(amount), 0) FROM research_projects WHERE COALESCE(NULLIF(TRIM(project_title), ''), NULLIF(TRIM(title), '')) IS NOT NULL
+SELECT 'research_project' AS category, COUNT(*), COALESCE(SUM(score), 0), COALESCE(SUM(amount), 0) FROM research_projects WHERE title IS NOT NULL AND TRIM(title) <> ''
 UNION ALL
-SELECT 'research_proposal' AS category, COUNT(*), COALESCE(SUM(score), 0), COALESCE(SUM(amount), 0) FROM research_proposals WHERE COALESCE(NULLIF(TRIM(proposal_title), ''), NULLIF(TRIM(title), '')) IS NOT NULL;
+SELECT 'research_proposal' AS category, COUNT(*), COALESCE(SUM(score), 0), COALESCE(SUM(amount), 0) FROM research_proposals WHERE title IS NOT NULL AND TRIM(title) <> '';
 
 CREATE UNIQUE INDEX idx_mv_category_summary_cat ON mv_research_category_summary(category);
 
@@ -150,11 +150,11 @@ DROP MATERIALIZED VIEW IF EXISTS mv_research_data_quality_summary CASCADE;
 CREATE MATERIALIZED VIEW mv_research_data_quality_summary AS
 SELECT 'unmatched_faculty_email' AS check_name, COUNT(*) AS alert_count FROM journal_publications jp LEFT JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(jp.faculty_email)) WHERE fp.email IS NULL
 UNION ALL
-SELECT 'missing_journal_title', COUNT(*) FROM journal_publications WHERE COALESCE(NULLIF(TRIM(journal_name), ''), NULLIF(TRIM(title), '')) IS NULL
+SELECT 'missing_journal_title', COUNT(*) FROM journal_publications WHERE NULLIF(TRIM(title), '') IS NULL
 UNION ALL
 SELECT 'missing_book_isbn', COUNT(*) FROM book_publications WHERE NULLIF(TRIM(isbn), '') IS NULL
 UNION ALL
-SELECT 'missing_patent_status', COUNT(*) FROM patents WHERE COALESCE(NULLIF(TRIM(status), ''), NULLIF(TRIM(patent_status), '')) IS NULL
+SELECT 'missing_patent_status', COUNT(*) FROM patents WHERE NULLIF(TRIM(patent_status), '') IS NULL
 UNION ALL
 SELECT 'missing_project_amount', COUNT(*) FROM research_projects WHERE amount IS NULL;
 
