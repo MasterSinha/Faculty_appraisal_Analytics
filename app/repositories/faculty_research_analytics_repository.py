@@ -24,6 +24,20 @@ logger = logging.getLogger("analytics.repository")
 class FacultyResearchAnalyticsRepository:
     def __init__(self, db: Session):
         self.db = db
+        self._table_columns_cache: dict[str, list[str]] = {}
+
+    def _get_table_columns(self, table: str) -> list[str]:
+        """Fetch and cache column names for a table."""
+        if table in self._table_columns_cache:
+            return self._table_columns_cache[table]
+        try:
+            sql = text("SELECT column_name FROM information_schema.columns WHERE table_name = :tbl")
+            cols = [str(r[0]).lower() for r in self.db.execute(sql, {"tbl": table}).all()]
+            self._table_columns_cache[table] = cols
+            return cols
+        except Exception:
+            self.db.rollback()
+            return []
 
     def _has_active_filters(self, filters: dict[str, Any]) -> bool:
         """Check if any row-filtering parameter is specified."""
@@ -469,36 +483,61 @@ class FacultyResearchAnalyticsRepository:
         }
 
     def category_records(self, table: str, filters: dict[str, Any], page: int, page_size: int) -> dict[str, Any]:
-        """Paginated records for specific research category."""
-        where, params = self._where(filters, alias="fp")
-        params["limit"] = page_size
-        params["offset"] = (page - 1) * page_size
-        
-        # Check sort fields
-        sort_by = filters.get("sort_by") or "academic_year"
-        sort_order = "DESC" if (filters.get("sort_order") or "desc").lower() == "desc" else "ASC"
+        """Paginated records for specific research category with safe dynamic column inspection."""
+        try:
+            tbl_cols = self._get_table_columns(table)
+            where, params = self._where(filters, alias="fp")
+            params["limit"] = page_size
+            params["offset"] = (page - 1) * page_size
 
-        # Search filter
-        search_clause = ""
-        if filters.get("search"):
-            search_clause = " AND (LOWER(t.title) LIKE :search OR LOWER(fp.full_name) LIKE :search) "
-            params["search"] = f"%{filters['search'].lower()}%"
+            # Determine valid sort column
+            sort_by_param = (filters.get("sort_by") or "").strip().lower()
+            sort_col = "id"
+            if sort_by_param and sort_by_param in tbl_cols:
+                sort_col = sort_by_param
+            else:
+                for candidate in ("academic_year", "publication_year", "year", "created_at", "id"):
+                    if candidate in tbl_cols:
+                        sort_col = candidate
+                        break
 
-        sql = text(f"""
-            SELECT t.*, fp.full_name, fp.employee_id, fp.school, fp.department, fp.designation
-            FROM {table} t
-            JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-            WHERE fp.is_active = TRUE {where} {search_clause}
-            ORDER BY t.{sort_by} {sort_order}
-            LIMIT :limit OFFSET :offset
-        """)
-        count_sql = text(f"""
-            SELECT COUNT(*) FROM {table} t
-            JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-            WHERE fp.is_active = TRUE {where} {search_clause}
-        """)
-        total = int(self.db.execute(count_sql, params).scalar() or 0)
-        return {"items": [dict(row) for row in self.db.execute(sql, params).mappings()], "page": page, "page_size": page_size, "total": total, "total_pages": ceil(total / page_size) if total else 0}
+            sort_order = "DESC" if (filters.get("sort_order") or "desc").lower() == "desc" else "ASC"
+
+            # Determine valid search clause across existing text columns
+            search_clause = ""
+            if filters.get("search"):
+                text_search_targets = []
+                for candidate in ("title", "paper_title", "book", "book_title", "details", "journal_name", "scholar_name", "project_title", "award_name"):
+                    if candidate in tbl_cols:
+                        text_search_targets.append(f"LOWER(t.{candidate}::text) LIKE :search")
+                
+                search_targets_str = " OR ".join(text_search_targets)
+                if search_targets_str:
+                    search_clause = f" AND (LOWER(fp.full_name) LIKE :search OR {search_targets_str}) "
+                else:
+                    search_clause = " AND LOWER(fp.full_name) LIKE :search "
+                params["search"] = f"%{filters['search'].lower()}%"
+
+            sql = text(f"""
+                SELECT t.*, fp.full_name, fp.employee_id, fp.school, fp.department, fp.designation
+                FROM {table} t
+                JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
+                WHERE fp.is_active = TRUE {where} {search_clause}
+                ORDER BY t.{sort_col} {sort_order}
+                LIMIT :limit OFFSET :offset
+            """)
+            count_sql = text(f"""
+                SELECT COUNT(*) FROM {table} t
+                JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
+                WHERE fp.is_active = TRUE {where} {search_clause}
+            """)
+            total = int(self.db.execute(count_sql, params).scalar() or 0)
+            rows = self.db.execute(sql, params).mappings()
+            return {"items": [dict(row) for row in rows], "page": page, "page_size": page_size, "total": total, "total_pages": ceil(total / page_size) if total else 0}
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error fetching category_records for table {table}: {e}")
+            return {"items": [], "page": page, "page_size": page_size, "total": 0, "total_pages": 0}
 
     def trends(self, filters: dict[str, Any]) -> dict[str, Any]:
         """Publication trends by year."""
@@ -748,5 +787,9 @@ class FacultyResearchAnalyticsRepository:
         return " ".join(clauses), params
 
     def _distinct(self, table: str, column: str) -> list[Any]:
-        sql = text(f"SELECT DISTINCT {column} FROM {table} WHERE NULLIF(TRIM({column}::text), '') IS NOT NULL ORDER BY {column}")
-        return [row[0] for row in self.db.execute(sql).all()]
+        try:
+            sql = text(f"SELECT DISTINCT {column} FROM {table} WHERE NULLIF(TRIM({column}::text), '') IS NOT NULL ORDER BY {column}")
+            return [row[0] for row in self.db.execute(sql).all()]
+        except Exception:
+            self.db.rollback()
+            return []
