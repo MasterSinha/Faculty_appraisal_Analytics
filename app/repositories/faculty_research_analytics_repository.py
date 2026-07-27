@@ -125,13 +125,13 @@ class FacultyResearchAnalyticsRepository:
     # -------------------------------------------------------------------------
     # 1. DASHBOARD SUMMARY ENDPOINT IMPLEMENTATION
     # -------------------------------------------------------------------------
-    def dashboard_summary(self, filters: dict[str, Any], refresh: bool = False) -> dict[str, Any]:
+    def dashboard_summary(self, filters: dict[str, Any], refresh: bool = False, debug: bool = False) -> dict[str, Any]:
         """Single fast dashboard summary endpoint returning all first-screen data in one response."""
         start_total = time.time()
         cache_key = build_cache_key("dashboard", filters)
         cache_ttl = 60
 
-        if not refresh:
+        if not refresh and not debug:
             is_hit, cached_data = get_cache(cache_key)
             if is_hit and cached_data:
                 cached_data["meta"]["cached"] = True
@@ -280,6 +280,46 @@ class FacultyResearchAnalyticsRepository:
             },
         }
 
+        # 12. Optional Debug Overview Verification Totals
+        if debug:
+            try:
+                where_fp, params_fp = self._where(filters, alias="fp")
+                where_rp, params_rp = self._where(filters, alias="fp", activity_alias="rp")
+                where_erp, params_erp = self._where(filters, alias="fp", activity_alias="erp")
+                where_rpr, params_rpr = self._where(filters, alias="fp", activity_alias="rpr")
+
+                raw_rp_funding = float(self.db.execute(text(f"""
+                    SELECT COALESCE(SUM(rp.amount), 0)
+                    FROM research_projects rp
+                    JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rp.faculty_email))
+                    WHERE fp.is_active = TRUE AND NULLIF(TRIM(rp.title), '') IS NOT NULL {where_rp}
+                """), params_rp).scalar() or 0.0)
+
+                raw_erp_funding = float(self.db.execute(text(f"""
+                    SELECT COALESCE(SUM(erp.amount), 0)
+                    FROM external_research_projects erp
+                    JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(erp.faculty_email))
+                    WHERE fp.is_active = TRUE AND NULLIF(TRIM(erp.title), '') IS NOT NULL {where_erp}
+                """), params_erp).scalar() or 0.0)
+
+                raw_proposal_funding = float(self.db.execute(text(f"""
+                    SELECT COALESCE(SUM(rpr.amount), 0)
+                    FROM research_proposals rpr
+                    JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rpr.faculty_email))
+                    WHERE fp.is_active = TRUE AND NULLIF(TRIM(rpr.title), '') IS NOT NULL {where_rpr}
+                """), params_rpr).scalar() or 0.0)
+
+                meta["debug_overview_totals"] = {
+                    "raw_research_projects_funding": raw_rp_funding,
+                    "raw_external_projects_funding": raw_erp_funding,
+                    "dashboard_total_sanctioned_funding": overview_data.get("total_sanctioned_funding", 0.0),
+                    "proposal_amount_excluded": raw_proposal_funding,
+                    "funding_status_filter_applied": True,
+                }
+            except Exception as ex:
+                self.db.rollback()
+                meta["debug_overview_totals"] = {"error": str(ex)}
+
         response = {
             "overview": overview_data,
             "kpis": kpis_data,
@@ -297,7 +337,8 @@ class FacultyResearchAnalyticsRepository:
             "warnings": warnings,
         }
 
-        set_cache(cache_key, response, ttl_seconds=cache_ttl)
+        if not debug:
+            set_cache(cache_key, response, ttl_seconds=cache_ttl)
         record_endpoint_timing("/api/v1/analytics/research/dashboard", total_time_ms)
         return response
 
@@ -338,6 +379,15 @@ class FacultyResearchAnalyticsRepository:
                     row["publication_participation_rate"] = round((publishing / total_active) * 100, 2) if total_active else 0
                     row["average_publications_per_publishing_faculty"] = round(journals / publishing, 2) if publishing else 0
                     row["funding_per_active_faculty"] = round(funding / total_active, 2) if total_active else 0
+
+                    # Fetch real ipr count
+                    try:
+                        ipr_sql = text("SELECT COUNT(*) FROM ipr_records ipr JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(ipr.faculty_email)) WHERE fp.is_active = TRUE AND NULLIF(TRIM(ipr.title), '') IS NOT NULL")
+                        row["total_ipr_records"] = int(self.db.execute(ipr_sql).scalar() or 0)
+                    except Exception:
+                        self.db.rollback()
+                        row["total_ipr_records"] = 0
+
                     return row
             except Exception:
                 self.db.rollback()
@@ -366,6 +416,13 @@ class FacultyResearchAnalyticsRepository:
               FROM patents t
               JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
               WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "patents")} {where_t}
+              GROUP BY LOWER(TRIM(t.faculty_email))
+            ),
+            ipr_summary AS (
+              SELECT LOWER(TRIM(t.faculty_email)) AS faculty_email, COUNT(*) AS total_ipr_records
+              FROM ipr_records t
+              JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
+              WHERE fp.is_active = TRUE AND {valid_condition_for_table("t", "ipr_records")} {where_t}
               GROUP BY LOWER(TRIM(t.faculty_email))
             ),
             project_summary AS (
@@ -426,6 +483,7 @@ class FacultyResearchAnalyticsRepository:
                 COUNT(DISTINCT bs.faculty_email) AS faculty_with_book_publication,
                 COALESCE(SUM(ps.total_patents), 0) AS total_patents,
                 COALESCE(SUM(ps.patents_granted), 0) AS patents_granted,
+                COALESCE(SUM(iprs.total_ipr_records), 0) AS total_ipr_records,
                 COALESCE(SUM(prs.total_projects), 0) AS total_research_projects,
                 COALESCE(SUM(prs.total_funding), 0) AS total_sanctioned_funding,
                 COALESCE(SUM(prs.external_projects), 0) AS external_funded_projects,
@@ -440,6 +498,7 @@ class FacultyResearchAnalyticsRepository:
             LEFT JOIN journal_summary js ON LOWER(TRIM(fp.email)) = js.faculty_email
             LEFT JOIN book_summary bs ON LOWER(TRIM(fp.email)) = bs.faculty_email
             LEFT JOIN patent_summary ps ON LOWER(TRIM(fp.email)) = ps.faculty_email
+            LEFT JOIN ipr_summary iprs ON LOWER(TRIM(fp.email)) = iprs.faculty_email
             LEFT JOIN project_summary prs ON LOWER(TRIM(fp.email)) = prs.faculty_email
             LEFT JOIN proposal_summary props ON LOWER(TRIM(fp.email)) = props.faculty_email
             LEFT JOIN guidance_summary gs ON LOWER(TRIM(fp.email)) = gs.faculty_email
@@ -1073,6 +1132,7 @@ class FacultyResearchAnalyticsRepository:
             "faculty_with_book_publication": 0,
             "total_patents": 0,
             "patents_granted": 0,
+            "total_ipr_records": 0,
             "total_research_projects": 0,
             "total_sanctioned_funding": 0.0,
             "external_funded_projects": 0,

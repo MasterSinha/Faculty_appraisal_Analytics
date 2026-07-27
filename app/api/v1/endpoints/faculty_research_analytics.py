@@ -86,12 +86,13 @@ def query_filters(
 @router.get("/dashboard", response_model=DashboardResponse)
 def dashboard(
     refresh: bool = Query(False, description="Bypass cache and rebuild analytics payload"),
+    debug: bool = Query(False, description="Include debug_overview_totals in meta response"),
     filters: dict[str, Any] = Depends(query_filters),
     _: dict = Depends(require_analytics_role),
     service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service),
 ):
     """Single fast dashboard summary endpoint returning all first-screen data in one response."""
-    return service.dashboard_summary(filters, refresh=refresh)
+    return service.dashboard_summary(filters, refresh=refresh, debug=debug)
 
 
 # -----------------------------------------------------------------------------

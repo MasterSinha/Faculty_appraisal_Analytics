@@ -8,8 +8,8 @@ class FacultyResearchAnalyticsService:
     def __init__(self, db: Session):
         self.repository = FacultyResearchAnalyticsRepository(db)
 
-    def dashboard_summary(self, filters: dict[str, Any], refresh: bool = False) -> dict[str, Any]:
-        return self.repository.dashboard_summary(filters, refresh=refresh)
+    def dashboard_summary(self, filters: dict[str, Any], refresh: bool = False, debug: bool = False) -> dict[str, Any]:
+        return self.repository.dashboard_summary(filters, refresh=refresh, debug=debug)
 
     def overview(self, filters: dict[str, Any]) -> dict[str, Any]:
         res = self.repository.overview(filters)

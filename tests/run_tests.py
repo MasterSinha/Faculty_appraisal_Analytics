@@ -252,6 +252,19 @@ class TestBackendArchitecture(unittest.TestCase):
         )
 
         cls.session.execute(
+            proposals.insert(),
+            [
+                {
+                    "id": 1,
+                    "faculty_email": "alice@university.edu",
+                    "title": "Unsanctioned Proposal Idea",
+                    "amount": 5000000.0,
+                    "academic_year": "2023-24",
+                }
+            ],
+        )
+
+        cls.session.execute(
             patents.insert(),
             [
                 {
@@ -345,6 +358,24 @@ class TestBackendArchitecture(unittest.TestCase):
             self.assertIn("by_school", dbg)
             self.assertTrue(dbg["is_consistent"])
             self.assertTrue(dbg["dashboard_matches_detail"])
+
+    def test_dashboard_overview_funding_and_proposals(self):
+        clear_cache()
+        dash = self.faculty_repo.dashboard_summary({}, refresh=True, debug=True)
+        overview = dash["overview"]
+
+        # Sanctioned funding must equal 750,000 (research project) and NOT include 5,000,000 proposal
+        self.assertEqual(overview["total_sanctioned_funding"], 750000.0)
+        self.assertEqual(overview["total_proposal_amount"], 5000000.0)
+        self.assertEqual(overview["total_research_projects"], 1)
+        self.assertEqual(overview["total_research_proposals"], 1)
+
+        # Debug block in meta
+        self.assertIn("debug_overview_totals", dash["meta"])
+        debug_totals = dash["meta"]["debug_overview_totals"]
+        self.assertEqual(debug_totals["dashboard_total_sanctioned_funding"], 750000.0)
+        self.assertEqual(debug_totals["proposal_amount_excluded"], 5000000.0)
+        self.assertTrue(debug_totals["funding_status_filter_applied"])
 
 
 if __name__ == "__main__":

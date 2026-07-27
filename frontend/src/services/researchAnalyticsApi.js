@@ -278,7 +278,7 @@ export const researchAnalyticsApi = {
   },
   topJournals: async () => ({ data: [] }),
   filters: () => request('/filters'),
-  departments: (params) => request('/departments', { ...params, page: 1, page_size: 500 }),
+  departments: (params) => request('/departments', { ...params, page: 1, page_size: 100 }),
   insights: (params) => request('/insights', params),
   dataQuality: (params) => requestAllPages('/data-quality', params),
   books: (params) => requestAllPages('/books', params),

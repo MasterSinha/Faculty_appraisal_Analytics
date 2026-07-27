@@ -217,7 +217,7 @@ export default function ResearchAnalyticsDashboard() {
     {
       title: 'Research Funding',
       explanation: `Total sanctioned institutional funding is ${fmtInr(ov.total_sanctioned_funding || ov.total_funding)}.`,
-      supporting_metric: `Across ${ov.total_projects || 0} research projects`,
+      supporting_metric: `Across ${ov.total_research_projects || ov.total_projects || 0} research projects`,
       severity: 'positive',
     },
     {

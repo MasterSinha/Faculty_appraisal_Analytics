@@ -8,6 +8,7 @@ class MetaResponse(BaseModel):
     generated_at: str = ""
     query_time_ms: float = 0.0
     filters_applied: dict[str, Any] = Field(default_factory=dict)
+    debug_overview_totals: Optional[dict[str, Any]] = None
 
 
 class KPISummaryItem(BaseModel):
@@ -74,6 +75,7 @@ class ResearchOverview(BaseModel):
     faculty_with_book_publication: int = 0
     total_patents: int = 0
     patents_granted: int = 0
+    total_ipr_records: int = 0
     total_research_projects: int = 0
     total_sanctioned_funding: float = 0.0
     external_funded_projects: int = 0
