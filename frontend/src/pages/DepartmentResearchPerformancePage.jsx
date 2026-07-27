@@ -15,6 +15,16 @@ import { mockResearchAnalytics } from '../services/researchAnalyticsMockData'
 import { departmentLabel } from '../utils/academicUnit'
 
 const tabs = ['Comparison', 'Participation', 'Funding and Innovation', 'Research Health', 'Gaps and Opportunities']
+const DEPARTMENT_SCOPE_SCHOOL = 'SoEMR'
+
+function isRealSoemrDepartment(row) {
+  const school = String(row.school || '').trim().toLowerCase()
+  const department = String(row.department || '').trim().toLowerCase()
+  return school === DEPARTMENT_SCOPE_SCHOOL.toLowerCase()
+    && department
+    && !['unassigned', 'not specified', 'unknown', 'n/a', '-', 'no department mapped'].includes(department)
+    && !department.includes('no department mapped')
+}
 
 function formatNumber(value) {
   return new Intl.NumberFormat('en-IN').format(value || 0)
@@ -268,6 +278,19 @@ export default function DepartmentResearchPerformancePage({ filters, updateFilte
   const [error, setError] = useState('')
   const [activeTab, setActiveTab] = useState('Comparison')
   const [selectedDepartment, setSelectedDepartment] = useState(null)
+  const effectiveFilters = useMemo(() => ({ ...filters, school: DEPARTMENT_SCOPE_SCHOOL }), [filters])
+  const scopedOptions = useMemo(() => {
+    const departments = (options?.departments || []).filter((department) => {
+      const text = String(department || '').trim().toLowerCase()
+      return text && !['unassigned', 'not specified', 'unknown', 'n/a', '-', 'no department mapped'].includes(text) && !text.includes('no department mapped')
+    })
+
+    return {
+      ...options,
+      schools: [DEPARTMENT_SCOPE_SCHOOL],
+      departments,
+    }
+  }, [options])
 
   useEffect(() => {
     let ignore = false
@@ -275,7 +298,7 @@ export default function DepartmentResearchPerformancePage({ filters, updateFilte
       setLoading((current) => current)
       setError('')
       try {
-        const data = await researchAnalyticsApi.departmentPerformance(filters)
+        const data = await researchAnalyticsApi.departmentPerformance(effectiveFilters)
         if (!ignore) setResponse({ items: data.items || data.departments || [] })
       } catch (requestError) {
         if (!ignore) {
@@ -290,13 +313,13 @@ export default function DepartmentResearchPerformancePage({ filters, updateFilte
     return () => {
       ignore = true
     }
-  }, [filters])
+  }, [effectiveFilters])
 
   function resetFilters() {
-    updateFilters({ search: '', school: '', department: '', designation: '', category: '', indexing: '', year: '', page: 1 })
+    updateFilters({ search: '', school: DEPARTMENT_SCOPE_SCHOOL, department: '', designation: '', category: '', indexing: '', year: '', page: 1 })
   }
 
-  const rows = (response.items || []).map((item) => {
+  const rows = (response.items || []).filter(isRealSoemrDepartment).map((item) => {
     const health = item.health_components ? { score: item.research_health_score, components: item.health_components } : calculateHealth(item)
     return {
       ...item,
@@ -325,7 +348,11 @@ export default function DepartmentResearchPerformancePage({ filters, updateFilte
         onExportXlsx={exportXlsx}
         onMobileMenuToggle={() => {}}
       />
-      <FilterBar filters={filters} options={options} onChange={updateFilters} onReset={resetFilters} />
+      <FilterBar filters={effectiveFilters} options={scopedOptions} onChange={updateFilters} onReset={resetFilters} />
+      <div className="data-limitation-notice">
+        <strong>Scope</strong>
+        <span>Department performance is shown only for SoEMR because other schools are mapped at school level without department structure.</span>
+      </div>
       {error && <div className="notice-banner"><strong>{error}</strong></div>}
 
       {loading ? (

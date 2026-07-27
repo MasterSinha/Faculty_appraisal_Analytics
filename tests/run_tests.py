@@ -7,7 +7,9 @@ from app.api.v1.endpoints.faculty_research_analytics import clamp_page_size
 from app.core.cache import clear_cache
 from app.database import get_db
 from app.main import app
+from app.repositories.department_performance_analytics_repository import DepartmentPerformanceAnalyticsRepository
 from app.repositories.faculty_research_analytics_repository import FacultyResearchAnalyticsRepository, clean_filter, valid_condition_for_table
+from app.repositories.school_performance_analytics_repository import SchoolPerformanceAnalyticsRepository
 from app.services.faculty_research_analytics_service import FacultyResearchAnalyticsService
 
 
@@ -404,6 +406,39 @@ class TestBackendArchitecture(unittest.TestCase):
         self.assertEqual(debug_totals["sum_of_school_funding"], 750000.0)
         self.assertTrue(debug_totals["funding_is_additive"])
         self.assertEqual(debug_totals["difference"], 0.0)
+
+    def test_department_performance_soemr_scoping_and_meta(self):
+        dept_repo = DepartmentPerformanceAnalyticsRepository(self.session)
+
+        # 1. Default call returns only SoEMR rows
+        res_default = dept_repo.get_analytics(1, 100, {})
+        for item in res_default["items"]:
+            self.assertEqual(item["school"], "SoEMR")
+            self.assertNotIn("no department mapped", item["department"].lower())
+            self.assertNotIn(item["department"].lower(), {"unassigned", "unknown", "n/a", ""})
+
+        # 2. ?school=All Schools returns only SoEMR rows
+        res_all = dept_repo.get_analytics(1, 100, {"school": "All Schools"})
+        for item in res_all["items"]:
+            self.assertEqual(item["school"], "SoEMR")
+
+        # 3. ?school=SoCSEA still returns only SoEMR rows
+        res_socsea = dept_repo.get_analytics(1, 100, {"school": "SoCSEA"})
+        for item in res_socsea["items"]:
+            self.assertEqual(item["school"], "SoEMR")
+
+        # 4. Meta verification
+        self.assertIn("meta", res_default)
+        self.assertEqual(res_default["meta"]["scope"], "SoEMR departments only")
+        self.assertEqual(res_default["meta"]["school_filter_forced"], "SoEMR")
+
+    def test_school_performance_and_dashboard_unchanged(self):
+        school_repo = SchoolPerformanceAnalyticsRepository(self.session)
+        res_school = school_repo.get_analytics(1, 100, {})
+        self.assertIn("items", res_school)
+
+        dash = self.faculty_repo.dashboard_summary({}, refresh=True)
+        self.assertIn("overview", dash)
 
 
 if __name__ == "__main__":

@@ -176,5 +176,6 @@ class DepartmentPerformanceAnalyticsResponse(BaseModel):
     page: int = 1
     page_size: int = 500
     total: int = 0
+    meta: Optional[Dict[str, Any]] = None
 
     model_config = ConfigDict(from_attributes=True)

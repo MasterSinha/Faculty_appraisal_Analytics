@@ -28,6 +28,20 @@ def parse_numeric_year(val: Any) -> Optional[int]:
     return None
 
 
+def is_pseudo_department(dept_name: Optional[str]) -> bool:
+    if dept_name is None:
+        return True
+    d_str = str(dept_name).strip()
+    if not d_str:
+        return True
+    d_lower = d_str.lower()
+    if d_lower in {"unassigned", "unknown", "not specified", "n/a", "-", "null", "undefined", "none"}:
+        return True
+    if "no department mapped" in d_lower:
+        return True
+    return False
+
+
 class DepartmentPerformanceAnalyticsRepository:
     """Repository for Department Research Performance Analytics using SQLAlchemy Core."""
 
@@ -202,14 +216,19 @@ class DepartmentPerformanceAnalyticsRepository:
         return rows
 
     def get_analytics(self, page: int, page_size: int, filters: Dict[str, Any]) -> Dict[str, Any]:
+        # Always force school to 'SoEMR' for department performance endpoint
+        filters = {**filters, "school": "SoEMR"}
+
         tables = self._get_tables()
         active_faculty_profiles = self._get_active_faculty_profiles(filters)
 
         # Department faculty mapping
         dept_fac_map: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
         for p in active_faculty_profiles:
-            s = p.get("school") or "Unassigned"
-            d = p.get("department") or "Unassigned"
+            s = p.get("school") or "SoEMR"
+            d = p.get("department") or ""
+            if is_pseudo_department(d):
+                continue
             dept_fac_map.setdefault((s, d), []).append(p)
 
         categories = ["journals", "books", "patents", "ipr", "research_projects", "external_projects", "proposals", "guidance", "conferences", "awards", "products"]
@@ -223,6 +242,8 @@ class DepartmentPerformanceAnalyticsRepository:
         dept_data: Dict[Tuple[str, str], Dict[str, Any]] = {}
         for key, f_list in dept_fac_map.items():
             sch, dept = key
+            if is_pseudo_department(dept):
+                continue
             dept_data[key] = {
                 "school": sch,
                 "department": dept,
@@ -242,8 +263,10 @@ class DepartmentPerformanceAnalyticsRepository:
 
         for cat, rows in cat_records.items():
             for r in rows:
-                sch = r.get("school") or "Unassigned"
-                dept = r.get("department") or "Unassigned"
+                sch = r.get("school") or "SoEMR"
+                dept = r.get("department") or ""
+                if is_pseudo_department(dept):
+                    continue
                 key = (sch, dept)
                 if key not in dept_data:
                     dept_data[key] = {
@@ -260,6 +283,7 @@ class DepartmentPerformanceAnalyticsRepository:
                         "patent_status": {"granted": 0, "filed": 0, "pending": 0, "other": 0},
                         "missing_metadata_count": 0,
                     }
+
 
                 d = dept_data[key]
                 d["records_by_cat"][cat].append(r)
@@ -563,6 +587,12 @@ class DepartmentPerformanceAnalyticsRepository:
             "research_health_score_breakdown": health_breakdown,
         }
 
+        meta = {
+            "scope": "SoEMR departments only",
+            "school_filter_forced": "SoEMR",
+            "reason": "Only SoEMR has department-level structure in this institution.",
+        }
+
         return {
             "items": paginated_items,
             "summary": summary,
@@ -570,4 +600,5 @@ class DepartmentPerformanceAnalyticsRepository:
             "page": page,
             "page_size": page_size,
             "total": total_depts,
+            "meta": meta,
         }
