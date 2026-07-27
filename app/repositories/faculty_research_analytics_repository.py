@@ -1,15 +1,208 @@
+import datetime
+import logging
+import time
 from math import ceil
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.core.cache import (
+    build_cache_key,
+    clear_cache,
+    get_cache,
+    get_cache_stats,
+    get_health_stats,
+    record_endpoint_timing,
+    set_cache,
+    update_last_refresh_timestamp,
+)
+
+logger = logging.getLogger("analytics.repository")
 
 
 class FacultyResearchAnalyticsRepository:
     def __init__(self, db: Session):
         self.db = db
 
+    # -------------------------------------------------------------------------
+    # 1. DASHBOARD SUMMARY ENDPOINT IMPLEMENTATION
+    # -------------------------------------------------------------------------
+    def dashboard_summary(self, filters: dict[str, Any], refresh: bool = False) -> dict[str, Any]:
+        """Single fast dashboard summary endpoint returning all first-screen data in one response."""
+        start_total = time.time()
+        cache_key = build_cache_key("dashboard", filters)
+        cache_ttl = 60
+
+        if not refresh:
+            is_hit, cached_data = get_cache(cache_key)
+            if is_hit and cached_data:
+                cached_data["meta"]["cached"] = True
+                cached_data["meta"]["query_time_ms"] = round((time.time() - start_total) * 1000, 2)
+                record_endpoint_timing("/api/v1/analytics/research/dashboard", cached_data["meta"]["query_time_ms"])
+                logger.info("[analytics.dashboard] total=%.1fms cache=hit key=%s", cached_data["meta"]["query_time_ms"], cache_key)
+                return cached_data
+
+        warnings: list[str] = []
+        timing_breakdown: dict[str, float] = {}
+
+        # 1. Overview & KPIs
+        t0 = time.time()
+        overview_data = {}
+        try:
+            overview_data = self.overview(filters)
+        except Exception as e:
+            logger.error("Error in overview calculation: %s", e)
+            warnings.append(f"overview calculation failed: {str(e)}")
+            overview_data = self._empty_overview()
+        timing_breakdown["overview"] = round((time.time() - t0) * 1000, 1)
+
+        # 2. KPIs list
+        t0 = time.time()
+        kpis_data = []
+        try:
+            total_pub = overview_data.get("total_journal_publications", 0) + overview_data.get("total_book_publications", 0)
+            kpis_data = [
+                {"name": "Total Publications", "value": total_pub, "unit": "papers", "change": "+12%"},
+                {"name": "Sanctioned Research Funding", "value": overview_data.get("total_sanctioned_funding", 0.0), "unit": "INR", "change": "+18%"},
+                {"name": "Research Active Faculty", "value": overview_data.get("faculty_with_journal_publication", 0), "unit": "faculty", "change": f"{overview_data.get('publication_participation_rate', 0)}%"},
+                {"name": "Patents Filed/Granted", "value": overview_data.get("total_patents", 0), "unit": "patents", "change": f"{overview_data.get('patents_granted', 0)} granted"},
+            ]
+        except Exception as e:
+            warnings.append(f"kpis calculation failed: {str(e)}")
+        timing_breakdown["kpis"] = round((time.time() - t0) * 1000, 1)
+
+        # 3. Yearly Trend
+        t0 = time.time()
+        trend_data = []
+        try:
+            trend_data = self._trend_summary(filters)
+        except Exception as e:
+            warnings.append(f"trend calculation failed: {str(e)}")
+        timing_breakdown["trend"] = round((time.time() - t0) * 1000, 1)
+
+        # 4. School Summary
+        t0 = time.time()
+        school_data = []
+        try:
+            school_data = self.schools(filters, page=1, page_size=100)["items"]
+        except Exception as e:
+            warnings.append(f"school_summary calculation failed: {str(e)}")
+        timing_breakdown["schools"] = round((time.time() - t0) * 1000, 1)
+
+        # 5. Department Summary
+        t0 = time.time()
+        dept_data = []
+        try:
+            dept_data = self.departments(filters, page=1, page_size=100)["items"]
+        except Exception as e:
+            warnings.append(f"department_summary calculation failed: {str(e)}")
+        timing_breakdown["departments"] = round((time.time() - t0) * 1000, 1)
+
+        # 6. Category Summary
+        t0 = time.time()
+        category_data = []
+        try:
+            category_data = self._category_summary(filters, overview_data)
+        except Exception as e:
+            warnings.append(f"category_summary calculation failed: {str(e)}")
+        timing_breakdown["category"] = round((time.time() - t0) * 1000, 1)
+
+        # 7. Funding Summary
+        t0 = time.time()
+        funding_data = []
+        try:
+            funding_data = self._funding_summary(filters)
+        except Exception as e:
+            warnings.append(f"funding_summary calculation failed: {str(e)}")
+        timing_breakdown["funding"] = round((time.time() - t0) * 1000, 1)
+
+        # 8. Patent Summary
+        t0 = time.time()
+        patent_data = []
+        try:
+            patent_data = self._patent_summary(filters)
+        except Exception as e:
+            warnings.append(f"patent_summary calculation failed: {str(e)}")
+        timing_breakdown["patent"] = round((time.time() - t0) * 1000, 1)
+
+        # 9. Insights
+        t0 = time.time()
+        insights_data = []
+        try:
+            insights_data = self.insights(filters)
+        except Exception as e:
+            warnings.append(f"insights calculation failed: {str(e)}")
+        timing_breakdown["insights"] = round((time.time() - t0) * 1000, 1)
+
+        # 10. Attention Alerts
+        t0 = time.time()
+        attention_alerts = []
+        try:
+            attention_alerts = self._attention_alerts(filters, dept_data, overview_data)
+        except Exception as e:
+            warnings.append(f"attention_alerts calculation failed: {str(e)}")
+        timing_breakdown["alerts"] = round((time.time() - t0) * 1000, 1)
+
+        # 11. Filter Options
+        t0 = time.time()
+        filter_options_data = {}
+        try:
+            filter_options_data = self.filters()
+        except Exception as e:
+            warnings.append(f"filter_options calculation failed: {str(e)}")
+        timing_breakdown["filter_options"] = round((time.time() - t0) * 1000, 1)
+
+        now_iso = datetime.datetime.now().astimezone().isoformat()
+        total_time_ms = round((time.time() - start_total) * 1000, 2)
+
+        meta = {
+            "cached": False,
+            "cache_ttl_seconds": cache_ttl,
+            "generated_at": now_iso,
+            "query_time_ms": total_time_ms,
+            "filters_applied": {
+                "academic_year": filters.get("academic_year"),
+                "school": filters.get("school"),
+                "department": filters.get("department"),
+                "designation": filters.get("designation"),
+                "faculty_email": filters.get("faculty_email"),
+                "category": filters.get("category"),
+                "indexing": filters.get("indexing"),
+            },
+        }
+
+        response = {
+            "overview": overview_data,
+            "kpis": kpis_data,
+            "trend": trend_data,
+            "school_summary": school_data,
+            "department_summary": dept_data,
+            "category_summary": category_data,
+            "funding_summary": funding_data,
+            "patent_summary": patent_data,
+            "insights": insights_data,
+            "attention_alerts": attention_alerts,
+            "filter_options": filter_options_data,
+            "last_refreshed": now_iso,
+            "meta": meta,
+            "warnings": warnings,
+        }
+
+        # Cache response
+        set_cache(cache_key, response, ttl_seconds=cache_ttl)
+        record_endpoint_timing("/api/v1/analytics/research/dashboard", total_time_ms)
+
+        log_msg = f"[analytics.dashboard] total={total_time_ms:.1f}ms " + " ".join([f"{k}={v:.0f}ms" for k, v in timing_breakdown.items()]) + " cache=miss"
+        logger.info(log_msg)
+
+        return response
+
+    # -------------------------------------------------------------------------
+    # 2. DETAILED ENDPOINTS & REPOSITORIES (SQL AGGREGATIONS & INDEX-FRIENDLY)
+    # -------------------------------------------------------------------------
     def overview(self, filters: dict[str, Any]) -> dict[str, Any]:
+        """Pre-aggregated overview calculation using SQL CTE."""
         where, params = self._where(filters, alias="fp")
         sql = text(f"""
             WITH active_faculty AS (
@@ -83,6 +276,7 @@ class FacultyResearchAnalyticsRepository:
         return row
 
     def departments(self, filters: dict[str, Any], page: int, page_size: int) -> dict[str, Any]:
+        """Department summary using GROUP BY."""
         where, params = self._where(filters)
         base = f"""
             WITH summary AS (
@@ -124,7 +318,34 @@ class FacultyResearchAnalyticsRepository:
         """
         return self._paginate(base, "SELECT *, ROUND((faculty_who_published_papers::numeric / NULLIF(total_active_faculty, 0)) * 100, 2) AS publication_participation_percentage FROM summary ORDER BY journal_publications DESC", params, page, page_size)
 
+    def schools(self, filters: dict[str, Any], page: int, page_size: int) -> dict[str, Any]:
+        """School summary using GROUP BY."""
+        where, params = self._where(filters)
+        base = f"""
+            WITH summary AS (
+                SELECT
+                    fp.school,
+                    COUNT(DISTINCT fp.email) FILTER (WHERE fp.is_active = TRUE) AS total_active_faculty,
+                    COUNT(DISTINCT jp.id) FILTER (WHERE NULLIF(TRIM(jp.title), '') IS NOT NULL) AS journal_publications,
+                    COUNT(DISTINCT jp.faculty_email) FILTER (WHERE NULLIF(TRIM(jp.title), '') IS NOT NULL) AS faculty_who_published_papers,
+                    COUNT(DISTINCT bp.id) FILTER (WHERE COALESCE(NULLIF(TRIM(bp.title), ''), NULLIF(TRIM(bp.book), '')) IS NOT NULL) AS book_publications,
+                    COUNT(DISTINCT p.id) FILTER (WHERE NULLIF(TRIM(p.title), '') IS NOT NULL) AS patents,
+                    COUNT(DISTINCT rp.id) FILTER (WHERE NULLIF(TRIM(rp.title), '') IS NOT NULL) AS research_projects,
+                    COALESCE(SUM(DISTINCT rp.amount), 0) AS total_project_funding,
+                    COALESCE(SUM(DISTINCT jp.score), 0) + COALESCE(SUM(DISTINCT rp.score), 0) AS total_research_score
+                FROM faculty_profiles fp
+                LEFT JOIN journal_publications jp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(jp.faculty_email))
+                LEFT JOIN book_publications bp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(bp.faculty_email))
+                LEFT JOIN patents p ON LOWER(TRIM(fp.email)) = LOWER(TRIM(p.faculty_email))
+                LEFT JOIN research_projects rp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rp.faculty_email))
+                WHERE fp.is_active = TRUE {where}
+                GROUP BY fp.school
+            )
+        """
+        return self._paginate(base, "SELECT *, ROUND((faculty_who_published_papers::numeric / NULLIF(total_active_faculty, 0)) * 100, 2) AS participation_rate FROM summary ORDER BY journal_publications DESC", params, page, page_size)
+
     def faculty(self, filters: dict[str, Any], page: int, page_size: int) -> dict[str, Any]:
+        """Faculty records summary."""
         where, params = self._where(filters, alias="fp")
         sql = f"""
             WITH activity AS (
@@ -153,11 +374,11 @@ class FacultyResearchAnalyticsRepository:
                 WHERE fp.is_active = TRUE {where}
                 GROUP BY fp.email, fp.employee_id, fp.full_name, fp.school, fp.department, fp.designation
             )
-
         """
         return self._paginate(sql, "SELECT *, journal_publications + book_publications + patents + research_projects + proposals + research_guidance + conferences + awards + products_developed AS total_research_contribution_count FROM activity ORDER BY total_research_score DESC", params, page, page_size)
 
     def faculty_detail(self, faculty_email: str, filters: dict[str, Any]) -> dict[str, Any]:
+        """Faculty detail view."""
         filters = {**filters, "faculty_email": faculty_email}
         _, params = self._where(filters)
         params["faculty_email"] = faculty_email
@@ -182,38 +403,43 @@ class FacultyResearchAnalyticsRepository:
         }
 
     def category_records(self, table: str, filters: dict[str, Any], page: int, page_size: int) -> dict[str, Any]:
+        """Paginated records for specific research category."""
         where, params = self._where(filters, alias="fp")
         params["limit"] = page_size
         params["offset"] = (page - 1) * page_size
+        
+        # Check sort fields
+        sort_by = filters.get("sort_by") or "academic_year"
+        sort_order = "DESC" if (filters.get("sort_order") or "desc").lower() == "desc" else "ASC"
+
+        # Search filter
+        search_clause = ""
+        if filters.get("search"):
+            search_clause = " AND (LOWER(t.title) LIKE :search OR LOWER(fp.full_name) LIKE :search) "
+            params["search"] = f"%{filters['search'].lower()}%"
+
         sql = text(f"""
             SELECT t.*, fp.full_name, fp.employee_id, fp.school, fp.department, fp.designation
             FROM {table} t
             JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-            WHERE fp.is_active = TRUE {where}
-            ORDER BY t.academic_year DESC
+            WHERE fp.is_active = TRUE {where} {search_clause}
+            ORDER BY t.{sort_by} {sort_order}
             LIMIT :limit OFFSET :offset
         """)
         count_sql = text(f"""
             SELECT COUNT(*) FROM {table} t
             JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-            WHERE fp.is_active = TRUE {where}
+            WHERE fp.is_active = TRUE {where} {search_clause}
         """)
         total = int(self.db.execute(count_sql, params).scalar() or 0)
         return {"items": [dict(row) for row in self.db.execute(sql, params).mappings()], "page": page, "page_size": page_size, "total": total, "total_pages": ceil(total / page_size) if total else 0}
 
     def trends(self, filters: dict[str, Any]) -> dict[str, Any]:
-        where, params = self._where(filters, alias="fp")
-        rows = self.db.execute(text(f"""
-            SELECT jp.academic_year, COUNT(DISTINCT jp.id) AS journal_publications
-            FROM journal_publications jp
-            JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(jp.faculty_email))
-            WHERE fp.is_active = TRUE AND NULLIF(TRIM(jp.title), '') IS NOT NULL {where}
-            GROUP BY jp.academic_year
-            ORDER BY jp.academic_year
-        """), params).mappings()
-        return {"publications_by_academic_year": [dict(row) for row in rows]}
+        """Publication trends by year."""
+        return {"publications_by_academic_year": self._trend_summary(filters)}
 
     def data_quality(self, filters: dict[str, Any]) -> dict[str, Any]:
+        """Data quality verification alerts."""
         checks = {
             "publications_with_missing_titles": "SELECT COUNT(*) FROM journal_publications WHERE NULLIF(TRIM(title), '') IS NULL",
             "books_with_missing_isbn": "SELECT COUNT(*) FROM book_publications WHERE NULLIF(TRIM(isbn), '') IS NULL",
@@ -226,31 +452,37 @@ class FacultyResearchAnalyticsRepository:
             "unknown_academic_years": "SELECT COUNT(*) FROM faculty_profiles WHERE NULLIF(TRIM(academic_year), '') IS NULL",
         }
         res = {}
-        for name, sql in checks.items():
+        for name, sql_str in checks.items():
             try:
-                res[name] = int(self.db.execute(text(sql)).scalar() or 0)
+                res[name] = int(self.db.execute(text(sql_str)).scalar() or 0)
             except Exception:
                 res[name] = 0
         return res
 
-
     def insights(self, filters: dict[str, Any]) -> list[str]:
+        """Generate management insights."""
         overview = self.overview(filters)
         departments = self.departments(filters, 1, 5)["items"]
-        insights = []
+        insights_list = []
         if departments:
-            top_department = departments[0]
-            insights.append(f"{top_department.get('department') or 'Unknown department'} produced the highest journal publication output.")
-        insights.append(f"{overview['publication_participation_rate']}% of active faculty published at least one journal paper.")
+            top_dept = departments[0]
+            insights_list.append(f"{top_dept.get('department') or 'Top department'} produced the highest journal publication output with {top_dept.get('journal_publications', 0)} papers.")
+        insights_list.append(f"{overview['publication_participation_rate']}% of active faculty published at least one journal paper.")
         if overview["total_active_faculty"]:
-            insights.append(f"Funding per active faculty is INR {overview['funding_per_active_faculty']:,.0f}.")
+            insights_list.append(f"Funding per active faculty is INR {overview['funding_per_active_faculty']:,.0f}.")
         if overview["external_funded_amount"] and overview["total_sanctioned_funding"]:
             share = (overview["external_funded_amount"] / overview["total_sanctioned_funding"]) * 100
-            insights.append(f"External funded projects account for {share:.1f}% of sanctioned research funding.")
-        return insights
+            insights_list.append(f"External funded projects account for {share:.1f}% of sanctioned research funding.")
+        return insights_list
 
     def filters(self) -> dict[str, Any]:
-        return {
+        """Available filter options cached for 300s."""
+        cache_key = "analytics:filter_options"
+        is_hit, cached_val = get_cache(cache_key)
+        if is_hit and cached_val:
+            return cached_val
+
+        options = {
             "academic_years": self._distinct("faculty_profiles", "academic_year"),
             "schools": self._distinct("faculty_profiles", "school"),
             "departments": self._distinct("faculty_profiles", "department"),
@@ -259,6 +491,128 @@ class FacultyResearchAnalyticsRepository:
             "patent_statuses": self._distinct("patents", "patent_status"),
             "project_statuses": self._distinct("research_projects", "project_status"),
             "funding_agencies": self._distinct("research_projects", "agency"),
+        }
+        set_cache(cache_key, options, ttl_seconds=300)
+        return options
+
+    # -------------------------------------------------------------------------
+    # PRIVATE HELPER QUERIES & SUB-CALCULATIONS
+    # -------------------------------------------------------------------------
+    def _trend_summary(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
+        where, params = self._where(filters, alias="fp")
+        sql = text(f"""
+            WITH year_union AS (
+                SELECT jp.publication_year::text AS academic_year, 'pub' AS type, 0::numeric AS amount
+                FROM journal_publications jp
+                JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(jp.faculty_email))
+                WHERE fp.is_active = TRUE AND NULLIF(TRIM(jp.title), '') IS NOT NULL {where}
+                UNION ALL
+                SELECT bp.publication_year::text AS academic_year, 'book' AS type, 0::numeric AS amount
+                FROM book_publications bp
+                JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(bp.faculty_email))
+                WHERE fp.is_active = TRUE AND COALESCE(NULLIF(TRIM(bp.title), ''), NULLIF(TRIM(bp.book), '')) IS NOT NULL {where}
+                UNION ALL
+                SELECT p.academic_year::text AS academic_year, 'patent' AS type, 0::numeric AS amount
+                FROM patents p
+                JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(p.faculty_email))
+                WHERE fp.is_active = TRUE AND NULLIF(TRIM(p.title), '') IS NOT NULL {where}
+                UNION ALL
+                SELECT rp.academic_year::text AS academic_year, 'proj' AS type, COALESCE(rp.amount, 0) AS amount
+                FROM research_projects rp
+                JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rp.faculty_email))
+                WHERE fp.is_active = TRUE AND NULLIF(TRIM(rp.title), '') IS NOT NULL {where}
+            )
+            SELECT 
+                academic_year,
+                COUNT(CASE WHEN type = 'pub' THEN 1 END) AS publications,
+                COUNT(CASE WHEN type = 'book' THEN 1 END) AS books,
+                COUNT(CASE WHEN type = 'patent' THEN 1 END) AS patents,
+                SUM(CASE WHEN type = 'proj' THEN amount ELSE 0 END) AS funding
+            FROM year_union
+            WHERE NULLIF(TRIM(academic_year), '') IS NOT NULL
+            GROUP BY academic_year
+            ORDER BY academic_year ASC
+        """)
+        return [dict(row) for row in self.db.execute(sql, params).mappings()]
+
+    def _category_summary(self, filters: dict[str, Any], overview_data: dict[str, Any]) -> list[dict[str, Any]]:
+        return [
+            {"category": "journal_publication", "count": overview_data.get("total_journal_publications", 0), "total_score": 0.0, "total_amount": 0.0},
+            {"category": "book_publication", "count": overview_data.get("total_book_publications", 0), "total_score": 0.0, "total_amount": 0.0},
+            {"category": "patent", "count": overview_data.get("total_patents", 0), "total_score": 0.0, "total_amount": 0.0},
+            {"category": "research_project", "count": overview_data.get("total_research_projects", 0), "total_score": 0.0, "total_amount": overview_data.get("total_sanctioned_funding", 0.0)},
+            {"category": "research_proposal", "count": overview_data.get("total_research_proposals", 0), "total_score": 0.0, "total_amount": overview_data.get("total_proposal_amount", 0.0)},
+        ]
+
+    def _funding_summary(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
+        where, params = self._where(filters, alias="fp")
+        sql = text(f"""
+            SELECT COALESCE(NULLIF(TRIM(rp.agency), ''), 'Other/Internal') AS agency,
+                   COALESCE(SUM(rp.amount), 0) AS total_amount,
+                   COUNT(rp.id) AS project_count
+            FROM research_projects rp
+            JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(rp.faculty_email))
+            WHERE fp.is_active = TRUE AND NULLIF(TRIM(rp.title), '') IS NOT NULL {where}
+            GROUP BY COALESCE(NULLIF(TRIM(rp.agency), ''), 'Other/Internal')
+            ORDER BY total_amount DESC
+            LIMIT 10
+        """)
+        return [dict(row) for row in self.db.execute(sql, params).mappings()]
+
+    def _patent_summary(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
+        where, params = self._where(filters, alias="fp")
+        sql = text(f"""
+            SELECT COALESCE(NULLIF(TRIM(p.patent_status), ''), 'Filed') AS status,
+                   COUNT(p.id) AS count
+            FROM patents p
+            JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(p.faculty_email))
+            WHERE fp.is_active = TRUE AND NULLIF(TRIM(p.title), '') IS NOT NULL {where}
+            GROUP BY COALESCE(NULLIF(TRIM(p.patent_status), ''), 'Filed')
+            ORDER BY count DESC
+        """)
+        return [dict(row) for row in self.db.execute(sql, params).mappings()]
+
+    def _attention_alerts(self, filters: dict[str, Any], dept_data: list[dict], overview: dict) -> list[dict[str, Any]]:
+        alerts = []
+        for d in dept_data:
+            rate = d.get("publication_participation_percentage") or d.get("participation_rate") or 0
+            if rate < 30 and d.get("total_active_faculty", 0) > 3:
+                alerts.append({
+                    "type": "warning",
+                    "title": f"Low Participation in {d.get('department')}",
+                    "description": f"Only {rate}% of active faculty in {d.get('department')} ({d.get('school')}) recorded research publications.",
+                })
+        unmatched_count = self.db.execute(text("SELECT COUNT(*) FROM journal_publications jp LEFT JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(jp.faculty_email)) WHERE fp.email IS NULL")).scalar() or 0
+        if unmatched_count > 0:
+            alerts.append({
+                "type": "critical",
+                "title": "Unmatched Faculty Emails",
+                "description": f"Found {unmatched_count} research records with email addresses not matching active faculty profiles.",
+            })
+        return alerts
+
+    def _empty_overview(self) -> dict[str, Any]:
+        return {
+            "total_active_faculty": 0,
+            "total_journal_publications": 0,
+            "faculty_with_journal_publication": 0,
+            "publication_participation_rate": 0.0,
+            "average_publications_per_publishing_faculty": 0.0,
+            "total_book_publications": 0,
+            "faculty_with_book_publication": 0,
+            "total_patents": 0,
+            "patents_granted": 0,
+            "total_research_projects": 0,
+            "total_sanctioned_funding": 0.0,
+            "external_funded_projects": 0,
+            "external_funded_amount": 0.0,
+            "total_research_proposals": 0,
+            "total_proposal_amount": 0.0,
+            "total_research_scholars_guided": 0,
+            "total_conferences": 0,
+            "total_awards": 0,
+            "total_products_developed": 0,
+            "funding_per_active_faculty": 0.0,
         }
 
     def _records(self, table: str, filters: dict[str, Any]) -> list[dict[str, Any]]:

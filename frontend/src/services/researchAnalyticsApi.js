@@ -1,5 +1,6 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const API_PREFIX = `${API_BASE_URL}/api/v1/analytics/research`
+const REQUEST_TIMEOUT_MS = 15000
 
 function buildUrl(path, params = {}) {
   const base = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
@@ -19,24 +20,36 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-async function request(path, params = {}) {
+async function request(path, params = {}, options = {}) {
   const url = buildUrl(path, params)
+  const controller = new AbortController()
+  const timeoutMs = options.timeoutMs || REQUEST_TIMEOUT_MS
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs)
 
-  const response = await fetch(url, { headers: authHeaders() })
-  if (!response.ok) {
-    let detail = ''
-    try {
-      const errBody = await response.json()
-      detail = errBody.detail || ''
-    } catch {
-      // ignore json parse error
+  try {
+    const response = await fetch(url, { headers: authHeaders(), signal: controller.signal })
+    if (!response.ok) {
+      let detail = ''
+      try {
+        const errBody = await response.json()
+        detail = errBody.detail || ''
+      } catch {
+        // ignore json parse error
+      }
+      const message = response.status === 401
+        ? 'Authentication token required or invalid.'
+        : (detail ? `[HTTP ${response.status}] ${detail}` : `[HTTP ${response.status}] Unable to load research analytics.`)
+      throw new Error(message)
     }
-    const message = response.status === 401
-      ? 'Authentication token required or invalid.'
-      : (detail ? `[HTTP ${response.status}] ${detail}` : `[HTTP ${response.status}] Unable to load research analytics.`)
-    throw new Error(message)
+    return response.json()
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s. Check FastAPI logs and database query speed.`, { cause: error })
+    }
+    throw error
+  } finally {
+    globalThis.clearTimeout(timeoutId)
   }
-  return response.json()
 }
 
 export const researchAnalyticsApi = {

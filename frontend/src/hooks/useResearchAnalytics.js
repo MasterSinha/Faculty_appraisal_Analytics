@@ -95,18 +95,57 @@ function buildFilteredMock(filters) {
   }
 }
 
+function emptyFaculty() {
+  return { items: [], page: 1, page_size: 10, total: 0, total_pages: 0 }
+}
+
+function emptyDepartments() {
+  return { items: [], page: 1, page_size: 100, total: 0, total_pages: 0 }
+}
+
+function emptyFilterOptions() {
+  return { schools: [], departments: [], years: [], indexing_categories: [], project_statuses: [], funding_agencies: [] }
+}
+
+function fulfilled(result, fallback = null) {
+  return result.status === 'fulfilled' ? result.value : fallback
+}
+
+function firstFailureMessage(results) {
+  return results.find((result) => result.status === 'rejected')?.reason?.message || ''
+}
+
+function hasLiveCoreData({ overview, faculty, trend, departments }) {
+  return Boolean(
+    overview
+    || Number(faculty?.total || 0) > 0
+    || Number(departments?.total || 0) > 0
+    || (trend || []).length > 0,
+  )
+}
+
+function indexingFromOverview(overview) {
+  if (!overview) return []
+  return [
+    { indexing: 'Journals', total_papers: overview.total_journal_publications || overview.total_research_papers || 0, total_faculty: overview.faculty_with_journal_publication || 0, vc_score: 0 },
+    { indexing: 'Books', total_papers: overview.total_book_publications || overview.total_books || 0, total_faculty: overview.faculty_with_book_publication || 0, vc_score: 0 },
+    { indexing: 'Patents', total_papers: overview.total_patents || 0, total_faculty: 0, vc_score: 0 },
+    { indexing: 'Projects', total_papers: overview.total_research_projects || overview.total_projects || 0, total_faculty: 0, vc_score: 0 },
+  ]
+}
+
 export function useResearchAnalytics() {
   const [filters, setFilters] = useState(initialFilters)
   const [data, setData] = useState({
     overview: null,
     indexing: [],
-    faculty: { items: [], page: 1, page_size: 10, total: 0, total_pages: 0 },
+    faculty: emptyFaculty(),
     trend: [],
     projects: [],
     scores: null,
     topFaculty: [],
     topJournals: [],
-    departments: { items: [], page: 1, page_size: 100, total: 0, total_pages: 0 },
+    departments: emptyDepartments(),
     insights: [],
     dataQuality: {},
     filterOptions: null,
@@ -124,69 +163,83 @@ export function useResearchAnalytics() {
     setDemoMode(false)
 
     try {
-      const results = await Promise.allSettled([
+      const coreResults = await Promise.allSettled([
         researchAnalyticsApi.overview(filters),
-        researchAnalyticsApi.indexing(filters),
         researchAnalyticsApi.faculty(filters),
         researchAnalyticsApi.trend(filters),
-        researchAnalyticsApi.projects(filters),
-        researchAnalyticsApi.scores(filters),
-        researchAnalyticsApi.topFaculty(10, filters),
-        researchAnalyticsApi.topJournals(10),
-        researchAnalyticsApi.filters(),
-        researchAnalyticsApi.departments(filters),
-        researchAnalyticsApi.insights(filters),
-        researchAnalyticsApi.dataQuality(filters),
       ])
 
-      const [overviewRes, indexingRes, facultyRes, trendRes, projectsRes, scoresRes, topFacultyRes, topJournalsRes, filterOptionsRes, departmentsRes, insightsRes, dataQualityRes] = results
+      const [overviewRes, facultyRes, trendRes] = coreResults
 
-      const overview = overviewRes.status === 'fulfilled' ? overviewRes.value : null
-      const indexing = indexingRes.status === 'fulfilled' ? indexingRes.value?.data || [] : []
-      const faculty = facultyRes.status === 'fulfilled' ? facultyRes.value : { items: [], page: 1, page_size: 10, total: 0, total_pages: 0 }
-      const trend = trendRes.status === 'fulfilled' ? trendRes.value?.data || [] : []
-      const projects = projectsRes.status === 'fulfilled' ? projectsRes.value?.data || [] : []
-      const scores = scoresRes.status === 'fulfilled' ? scoresRes.value : null
-      const topFaculty = topFacultyRes.status === 'fulfilled' ? topFacultyRes.value?.data || [] : []
-      const topJournals = topJournalsRes.status === 'fulfilled' ? topJournalsRes.value?.data || [] : []
-      const filterOptions = filterOptionsRes.status === 'fulfilled' ? filterOptionsRes.value : null
-      const departments = departmentsRes.status === 'fulfilled' ? departmentsRes.value : { items: [], page: 1, page_size: 100, total: 0, total_pages: 0 }
-      const insights = insightsRes.status === 'fulfilled' ? insightsRes.value?.insights || [] : []
-      const dataQuality = dataQualityRes.status === 'fulfilled' ? dataQualityRes.value || {} : {}
+      const overview = fulfilled(overviewRes)
+      const faculty = fulfilled(facultyRes, emptyFaculty())
+      const trend = fulfilled(trendRes)?.data || []
+      const departments = emptyDepartments()
 
-      const failedCount = results.filter((r) => r.status === 'rejected').length
-
-      if (overview || faculty.total > 0 || indexing.length > 0 || projects.length > 0) {
-        setData({
+      if (hasLiveCoreData({ overview, faculty, trend, departments })) {
+        setData((current) => ({
+          ...current,
           overview: overview || mockResearchAnalytics.overview,
-          indexing,
+          indexing: indexingFromOverview(overview),
           faculty,
           trend,
+          departments,
+          filterOptions: current.filterOptions || emptyFilterOptions(),
+        }))
+        setLoading(false)
+        setDemoMode(false)
+
+        const secondaryResults = await Promise.allSettled([
+          researchAnalyticsApi.indexing(filters),
+          researchAnalyticsApi.projects(filters),
+          researchAnalyticsApi.scores(filters),
+          researchAnalyticsApi.topFaculty(10, filters),
+          researchAnalyticsApi.topJournals(10),
+          researchAnalyticsApi.filters(),
+          researchAnalyticsApi.departments(filters),
+          researchAnalyticsApi.insights(filters),
+          researchAnalyticsApi.dataQuality(filters),
+        ])
+
+        const [indexingRes, projectsRes, scoresRes, topFacultyRes, topJournalsRes, filterOptionsRes, departmentsRes, insightsRes, dataQualityRes] = secondaryResults
+        const indexing = fulfilled(indexingRes)?.data || indexingFromOverview(overview)
+        const projects = fulfilled(projectsRes)?.data || []
+        const scores = fulfilled(scoresRes)
+        const topFaculty = fulfilled(topFacultyRes)?.data || []
+        const topJournals = fulfilled(topJournalsRes)?.data || []
+        const filterOptions = fulfilled(filterOptionsRes)
+        const liveDepartments = fulfilled(departmentsRes, emptyDepartments())
+        const insights = fulfilled(insightsRes)?.insights || []
+        const dataQuality = fulfilled(dataQualityRes) || {}
+
+        setData((current) => ({
+          ...current,
+          indexing,
           projects,
           scores: scores || mockResearchAnalytics.scores,
           topFaculty,
           topJournals,
-          departments,
+          filterOptions: filterOptions || current.filterOptions || emptyFilterOptions(),
+          departments: liveDepartments,
           insights,
           dataQuality,
-          filterOptions: filterOptions || { schools: [], departments: [], years: [], indexing_categories: [], project_statuses: [], funding_agencies: [] },
-        })
-        setDemoMode(false)
+        }))
+
+        const failedCount = [...coreResults, ...secondaryResults].filter((result) => result.status === 'rejected').length
         if (failedCount > 0) {
-          const firstErr = results.find((r) => r.status === 'rejected')?.reason?.message || ''
-          setError(`Partial data loaded from live database. (${firstErr})`)
+          setError(`Live data loaded partially. ${firstFailureMessage([...coreResults, ...secondaryResults])}`)
         }
       } else {
         setData(buildFilteredMock(filters))
         setDemoMode(true)
-        const firstErr = results.find((r) => r.status === 'rejected')?.reason?.message || 'Unable to connect to live API.'
+        const firstErr = firstFailureMessage(coreResults) || 'Unable to connect to live API.'
         setError(`${firstErr} Showing demo fallback until FastAPI is connected.`)
+        setLoading(false)
       }
     } catch (requestError) {
       setData(buildFilteredMock(filters))
       setDemoMode(true)
       setError(`${requestError.message} Showing demo data.`)
-    } finally {
       setLoading(false)
     }
   }, [filters])

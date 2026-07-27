@@ -5,10 +5,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import get_db
 from app.main import app
-from app.repositories.books_analytics_repository import BooksAnalyticsRepository
-from app.repositories.research_analytics_repository import ResearchAnalyticsRepository
-from app.services.books_analytics_service import BooksAnalyticsService
-from app.services.research_analytics_service import ResearchAnalyticsService
+from app.repositories.faculty_research_analytics_repository import FacultyResearchAnalyticsRepository
+from app.services.faculty_research_analytics_service import FacultyResearchAnalyticsService
 
 
 class TestBackendArchitecture(unittest.TestCase):
@@ -26,6 +24,8 @@ class TestBackendArchitecture(unittest.TestCase):
             Column("email", String),
             Column("school", String),
             Column("department", String),
+            Column("designation", String),
+            Column("academic_year", String),
             Column("is_active", Boolean, default=True),
         )
 
@@ -49,6 +49,7 @@ class TestBackendArchitecture(unittest.TestCase):
             metadata,
             Column("id", Integer, primary_key=True),
             Column("faculty_email", String),
+            Column("title", String),
             Column("journal_name", String),
             Column("indexing", String),
             Column("publication_year", Integer),
@@ -56,6 +57,92 @@ class TestBackendArchitecture(unittest.TestCase):
             Column("self_score", Float),
             Column("director_score", Float),
             Column("dean_score", Float),
+            Column("score", Float),
+        )
+
+        projects = Table(
+            "research_projects",
+            metadata,
+            Column("id", Integer, primary_key=True),
+            Column("faculty_email", String),
+            Column("title", String),
+            Column("project_title", String),
+            Column("project_status", String),
+            Column("agency", String),
+            Column("funding_agency", String),
+            Column("amount", Float),
+            Column("project_type", String),
+            Column("academic_year", String),
+            Column("score", Float),
+            Column("vc_score", Float),
+        )
+
+        external_projects = Table(
+            "external_research_projects",
+            metadata,
+            Column("id", Integer, primary_key=True),
+            Column("faculty_email", String),
+            Column("title", String),
+            Column("project_status", String),
+            Column("agency", String),
+            Column("amount", Float),
+            Column("academic_year", String),
+        )
+
+        proposals = Table(
+            "research_proposals",
+            metadata,
+            Column("id", Integer, primary_key=True),
+            Column("faculty_email", String),
+            Column("title", String),
+            Column("amount", Float),
+            Column("academic_year", String),
+        )
+
+        guidance = Table(
+            "research_guidance",
+            metadata,
+            Column("id", Integer, primary_key=True),
+            Column("faculty_email", String),
+            Column("student_name", String),
+        )
+
+        conferences = Table(
+            "conferences",
+            metadata,
+            Column("id", Integer, primary_key=True),
+            Column("faculty_email", String),
+            Column("title", String),
+        )
+
+        awards = Table(
+            "awards",
+            metadata,
+            Column("id", Integer, primary_key=True),
+            Column("faculty_email", String),
+            Column("title", String),
+        )
+
+        products = Table(
+            "products_developed",
+            metadata,
+            Column("id", Integer, primary_key=True),
+            Column("faculty_email", String),
+            Column("details", String),
+        )
+
+        patents = Table(
+            "patents",
+            metadata,
+            Column("id", Integer, primary_key=True),
+            Column("faculty_email", String),
+            Column("title", String),
+            Column("patent_title", String),
+            Column("patent_status", String),
+            Column("scope", String),
+            Column("academic_year", String),
+            Column("score", Float),
+            Column("vc_score", Float),
         )
 
         metadata.create_all(cls.engine)
@@ -73,6 +160,8 @@ class TestBackendArchitecture(unittest.TestCase):
                     "email": "alice@university.edu",
                     "school": "School of Engineering",
                     "department": "Computer Science",
+                    "designation": "Professor",
+                    "academic_year": "2023-24",
                     "is_active": True,
                 },
                 {
@@ -82,8 +171,26 @@ class TestBackendArchitecture(unittest.TestCase):
                     "email": "bob@university.edu",
                     "school": "School of Sciences",
                     "department": "Physics",
+                    "designation": "Associate Professor",
+                    "academic_year": "2023-24",
                     "is_active": True,
                 },
+            ],
+        )
+
+        cls.session.execute(
+            journal.insert(),
+            [
+                {
+                    "id": 1,
+                    "faculty_email": "alice@university.edu",
+                    "title": "Deep Learning Optimization",
+                    "journal_name": "IEEE Transactions",
+                    "indexing": "SCI",
+                    "publication_year": 2024,
+                    "vc_score": 10.0,
+                    "score": 10.0,
+                }
             ],
         )
 
@@ -105,30 +212,84 @@ class TestBackendArchitecture(unittest.TestCase):
             ],
         )
 
+        cls.session.execute(
+            projects.insert(),
+            [
+                {
+                    "id": 1,
+                    "faculty_email": "alice@university.edu",
+                    "title": "Quantum AI Systems",
+                    "project_title": "Quantum AI Systems",
+                    "project_status": "Ongoing",
+                    "agency": "DST",
+                    "funding_agency": "DST",
+                    "amount": 750000.0,
+                    "project_type": "External",
+                    "academic_year": "2023-24",
+                    "score": 15.0,
+                    "vc_score": 15.0,
+                }
+            ],
+        )
+
+        cls.session.execute(
+            patents.insert(),
+            [
+                {
+                    "id": 1,
+                    "faculty_email": "bob@university.edu",
+                    "title": "Solar Energy Collector Grid",
+                    "patent_title": "Solar Energy Collector Grid",
+                    "patent_status": "Granted",
+                    "scope": "National",
+                    "academic_year": "2023-24",
+                    "score": 20.0,
+                    "vc_score": 20.0,
+                }
+            ],
+        )
+
         cls.session.commit()
-        cls.service = ResearchAnalyticsService(cls.session)
-        cls.books_service = BooksAnalyticsService(cls.session)
+        cls.faculty_repo = FacultyResearchAnalyticsRepository(cls.session)
+        cls.faculty_service = FacultyResearchAnalyticsService(cls.session)
 
-    def test_overview(self):
-        overview = self.service.overview()
-        self.assertEqual(overview["total_faculty"], 2)
+    def test_dashboard_summary_structure(self):
+        dash = self.faculty_repo.dashboard_summary({})
+        self.assertIn("overview", dash)
+        self.assertIn("kpis", dash)
+        self.assertIn("trend", dash)
+        self.assertIn("school_summary", dash)
+        self.assertIn("department_summary", dash)
+        self.assertIn("category_summary", dash)
+        self.assertIn("funding_summary", dash)
+        self.assertIn("patent_summary", dash)
+        self.assertIn("insights", dash)
+        self.assertIn("attention_alerts", dash)
+        self.assertIn("filter_options", dash)
+        self.assertIn("meta", dash)
+        self.assertIn("warnings", dash)
+        self.assertFalse(dash["meta"]["cached"])
 
-    def test_books_overview(self):
-        ov = self.books_service.overview({})
-        self.assertEqual(ov["total_book_publication_records"], 1)
-        self.assertEqual(ov["faculty_publishing_books"], 1)
+    def test_dashboard_caching_and_refresh(self):
+        # 1st call -> uncached
+        res1 = self.faculty_repo.dashboard_summary({"school": "School of Engineering"})
+        self.assertFalse(res1["meta"]["cached"])
 
-    def test_books_departments(self):
-        deps = self.books_service.departments(1, 10, {})
-        self.assertEqual(deps["total"], 2)
+        # 2nd call -> cached hit
+        res2 = self.faculty_repo.dashboard_summary({"school": "School of Engineering"})
+        self.assertTrue(res2["meta"]["cached"])
 
-    def test_books_publishers(self):
-        pubs = self.books_service.publishers({})
-        self.assertEqual(len(pubs), 1)
+        # 3rd call with refresh=True -> bypass cache
+        res3 = self.faculty_repo.dashboard_summary({"school": "School of Engineering"}, refresh=True)
+        self.assertFalse(res3["meta"]["cached"])
 
-    def test_books_records(self):
-        recs = self.books_service.records(1, 10, {})
-        self.assertEqual(recs["total"], 1)
+    def test_health_check(self):
+        health = self.faculty_service.repository.db.execute
+        self.assertIsNotNone(health)
+
+    def test_filtered_dashboard(self):
+        dash = self.faculty_repo.dashboard_summary({"department": "Computer Science"}, refresh=True)
+        self.assertEqual(dash["meta"]["filters_applied"]["department"], "Computer Science")
 
 
 if __name__ == "__main__":
