@@ -43,16 +43,42 @@ project_summary AS (
     SUM(CASE WHEN external_project = TRUE THEN COALESCE(amount, 0) ELSE 0 END) AS external_funding,
     SUM(COALESCE(score, 0)) AS project_score
   FROM (
-    SELECT faculty_email, title, amount, score, project_status, FALSE AS external_project FROM research_projects
-    UNION ALL
-    SELECT faculty_email, title, amount, 0::numeric AS score, project_status, TRUE AS external_project FROM external_research_projects
-  ) p
-  WHERE NULLIF(TRIM(title), '') IS NOT NULL
-    AND (
-      COALESCE(TRIM(project_status), '') = ''
-      OR LOWER(COALESCE(project_status, '')) SIMILAR TO '%(sanction|ongoing|complete|closed|approved)%'
-    )
-    AND LOWER(COALESCE(project_status, '')) NOT IN ('proposed', 'submitted', 'rejected', 'unknown')
+    SELECT
+      x.faculty_email,
+      x.amount,
+      x.score,
+      x.external_project
+    FROM (
+      SELECT
+        up.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY up.project_key
+          ORDER BY
+            CASE WHEN LOWER(COALESCE(up.role, '')) LIKE '%principal%' OR LOWER(COALESCE(up.role, '')) = 'pi' THEN 1 ELSE 2 END ASC,
+            up.id ASC
+        ) AS rn
+      FROM (
+        SELECT 'research_projects' AS source_table, id, faculty_email, title, amount, score, role, project_status, FALSE AS external_project,
+               COALESCE(NULLIF(TRIM(file_no), ''), LOWER(TRIM(title)) || '|' || COALESCE(amount::text, '0') || '|' || LOWER(TRIM(COALESCE(agency, '')))) AS project_key
+        FROM research_projects
+        WHERE NULLIF(TRIM(title), '') IS NOT NULL
+          AND (COALESCE(TRIM(project_status), '') = '' OR LOWER(COALESCE(project_status, '')) SIMILAR TO '%(sanction|ongoing|complete|closed|approved|active|grant)%')
+          AND LOWER(COALESCE(project_status, '')) NOT IN ('proposed', 'submitted', 'rejected', 'unknown', 'draft')
+
+        UNION ALL
+
+        SELECT 'external_research_projects' AS source_table, id, faculty_email, title, amount, 0::numeric AS score, '' AS role, project_status, TRUE AS external_project,
+               COALESCE(NULLIF(TRIM(file_no), ''), LOWER(TRIM(title)) || '|' || COALESCE(amount::text, '0') || '|' || LOWER(TRIM(COALESCE(agency, '')))) AS project_key
+        FROM external_research_projects
+        WHERE NULLIF(TRIM(title), '') IS NOT NULL
+          AND (COALESCE(TRIM(project_status), '') = '' OR LOWER(COALESCE(project_status, '')) SIMILAR TO '%(sanction|ongoing|complete|closed|approved|active|grant)%')
+          AND LOWER(COALESCE(project_status, '')) NOT IN ('proposed', 'submitted', 'rejected', 'unknown', 'draft')
+      ) up
+      JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(up.faculty_email))
+      WHERE fp.is_active = TRUE
+    ) x
+    WHERE x.rn = 1
+  ) deduped
   GROUP BY LOWER(TRIM(faculty_email))
 ),
 proposal_summary AS (
@@ -191,9 +217,45 @@ WITH year_union AS (
   UNION ALL
   SELECT academic_year::text AS academic_year, 'patent' AS type, 0::numeric AS amount FROM patents WHERE NULLIF(TRIM(title), '') IS NOT NULL
   UNION ALL
-  SELECT academic_year::text AS academic_year, 'proj' AS type, COALESCE(amount, 0) AS amount FROM research_projects WHERE NULLIF(TRIM(title), '') IS NOT NULL AND (COALESCE(TRIM(project_status), '') = '' OR LOWER(COALESCE(project_status, '')) SIMILAR TO '%(sanction|ongoing|complete|closed|approved)%') AND LOWER(COALESCE(project_status, '')) NOT IN ('proposed', 'submitted', 'rejected', 'unknown')
-  UNION ALL
-  SELECT academic_year::text AS academic_year, 'proj' AS type, COALESCE(amount, 0) AS amount FROM external_research_projects WHERE NULLIF(TRIM(title), '') IS NOT NULL AND (COALESCE(TRIM(project_status), '') = '' OR LOWER(COALESCE(project_status, '')) SIMILAR TO '%(sanction|ongoing|complete|closed|approved)%') AND LOWER(COALESCE(project_status, '')) NOT IN ('proposed', 'submitted', 'rejected', 'unknown')
+  SELECT
+    academic_year::text AS academic_year,
+    'proj' AS type,
+    COALESCE(amount, 0) AS amount
+  FROM (
+    SELECT
+      x.academic_year,
+      x.amount
+    FROM (
+      SELECT
+        up.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY up.project_key
+          ORDER BY
+            CASE WHEN LOWER(COALESCE(up.role, '')) LIKE '%principal%' OR LOWER(COALESCE(up.role, '')) = 'pi' THEN 1 ELSE 2 END ASC,
+            up.id ASC
+        ) AS rn
+      FROM (
+        SELECT 'research_projects' AS source_table, id, faculty_email, title, amount, academic_year, role, project_status,
+               COALESCE(NULLIF(TRIM(file_no), ''), LOWER(TRIM(title)) || '|' || COALESCE(amount::text, '0') || '|' || LOWER(TRIM(COALESCE(agency, '')))) AS project_key
+        FROM research_projects
+        WHERE NULLIF(TRIM(title), '') IS NOT NULL
+          AND (COALESCE(TRIM(project_status), '') = '' OR LOWER(COALESCE(project_status, '')) SIMILAR TO '%(sanction|ongoing|complete|closed|approved|active|grant)%')
+          AND LOWER(COALESCE(project_status, '')) NOT IN ('proposed', 'submitted', 'rejected', 'unknown', 'draft')
+
+        UNION ALL
+
+        SELECT 'external_research_projects' AS source_table, id, faculty_email, title, amount, academic_year, '' AS role, project_status,
+               COALESCE(NULLIF(TRIM(file_no), ''), LOWER(TRIM(title)) || '|' || COALESCE(amount::text, '0') || '|' || LOWER(TRIM(COALESCE(agency, '')))) AS project_key
+        FROM external_research_projects
+        WHERE NULLIF(TRIM(title), '') IS NOT NULL
+          AND (COALESCE(TRIM(project_status), '') = '' OR LOWER(COALESCE(project_status, '')) SIMILAR TO '%(sanction|ongoing|complete|closed|approved|active|grant)%')
+          AND LOWER(COALESCE(project_status, '')) NOT IN ('proposed', 'submitted', 'rejected', 'unknown', 'draft')
+      ) up
+      JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(up.faculty_email))
+      WHERE fp.is_active = TRUE
+    ) x
+    WHERE x.rn = 1
+  ) deduped_projects
 )
 SELECT
   academic_year,
