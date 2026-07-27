@@ -3,6 +3,8 @@ import { sanitizeFilters } from '../utils/filterUtils'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const API_PREFIX = `${API_BASE_URL}/api/v1/analytics/research`
 const REQUEST_TIMEOUT_MS = 15000
+const ANALYTICS_RECORD_LIMIT = 5000
+const ANALYTICS_MAX_PAGES = 50
 
 function buildUrl(path, params = {}) {
   const base = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
@@ -54,6 +56,45 @@ function mapFacultyPage(data = {}) {
   }
 }
 
+function recordParams(params = {}) {
+  return { ...params, page: 1, page_size: ANALYTICS_RECORD_LIMIT }
+}
+
+function appendArrayMap(target, source, skipKeys = []) {
+  Object.entries(source || {}).forEach(([key, value]) => {
+    if (!skipKeys.includes(key) && Array.isArray(value)) {
+      target[key] = [...(target[key] || []), ...value]
+    }
+  })
+}
+
+function mergePagedResponses(firstPage, pages) {
+  const combined = { ...firstPage }
+
+  if (Array.isArray(firstPage.items)) {
+    combined.items = [...firstPage.items]
+    pages.forEach((page) => {
+      combined.items.push(...(Array.isArray(page.items) ? page.items : []))
+    })
+  } else if (firstPage.items && typeof firstPage.items === 'object') {
+    combined.items = { ...firstPage.items }
+    pages.forEach((page) => appendArrayMap(combined.items, page.items))
+  }
+
+  Object.entries(firstPage || {}).forEach(([key, value]) => {
+    if (key !== 'items' && Array.isArray(value)) {
+      combined[key] = [...value]
+    }
+  })
+  pages.forEach((page) => appendArrayMap(combined, page, ['items']))
+
+  combined.page = 1
+  combined.total = Array.isArray(combined.items) ? combined.items.length : (firstPage.total || combined.total || 0)
+  combined.total_pages = 1
+
+  return combined
+}
+
 function authHeaders() {
   const token = localStorage.getItem('access_token') || localStorage.getItem('token')
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -89,6 +130,25 @@ async function request(path, params = {}, options = {}) {
   } finally {
     globalThis.clearTimeout(timeoutId)
   }
+}
+
+async function requestAllPages(path, params = {}) {
+  const firstPage = await request(path, recordParams(params))
+  const returnedPageSize = Number(firstPage.page_size || firstPage.limit || ANALYTICS_RECORD_LIMIT)
+  const total = Number(firstPage.total || 0)
+  const declaredPages = Number(firstPage.total_pages || 0)
+  const calculatedPages = total && returnedPageSize ? Math.ceil(total / returnedPageSize) : 1
+  const totalPages = Math.min(Math.max(declaredPages || calculatedPages || 1, 1), ANALYTICS_MAX_PAGES)
+
+  if (totalPages <= 1) return firstPage
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) =>
+      request(path, { ...recordParams(params), page: index + 2, page_size: returnedPageSize }),
+    ),
+  )
+
+  return mergePagedResponses(firstPage, remainingPages)
 }
 
 export const researchAnalyticsApi = {
@@ -216,22 +276,22 @@ export const researchAnalyticsApi = {
   },
   topJournals: async () => ({ data: [] }),
   filters: () => request('/filters'),
-  departments: (params) => request('/departments', { page_size: 100, ...params }),
+  departments: (params) => request('/departments', { ...params, page: 1, page_size: 500 }),
   insights: (params) => request('/insights', params),
-  dataQuality: (params) => request('/data-quality', params),
-  books: (params) => request('/books', { page_size: 500, ...params }),
-  publications: (params) => request('/publications', { page_size: 500, ...params }),
-  patents: (params) => request('/patents', { page_size: 500, ...params }),
-  projectRecords: (params) => request('/projects', { page_size: 500, ...params }),
+  dataQuality: (params) => requestAllPages('/data-quality', params),
+  books: (params) => requestAllPages('/books', params),
+  publications: (params) => requestAllPages('/publications', params),
+  patents: (params) => requestAllPages('/patents', params),
+  projectRecords: (params) => requestAllPages('/projects', params),
   funding: (params) => request('/funding', params),
-  guidance: (params) => request('/guidance', { page_size: 500, ...params }),
-  conferencesAwards: (params) => request('/conferences-awards', { page_size: 500, ...params }),
-  innovationPipeline: (params) => request('/innovation-pipeline', { page_size: 500, ...params }),
-  facultyPerformance: (params) => request('/faculty-performance', { page_size: 500, ...params }),
-  departmentPerformance: (params) => request('/department-performance', { page_size: 500, ...params }),
-  schoolPerformance: (params) => request('/school-performance', { page_size: 500, ...params }),
-  teachingResearchBalance: (params) => request('/teaching-research-balance', { page_size: 500, ...params }),
-  appraisalCompletion: (params) => request('/appraisal-completion', { page_size: 500, ...params }),
+  guidance: (params) => requestAllPages('/guidance', params),
+  conferencesAwards: (params) => requestAllPages('/conferences-awards', params),
+  innovationPipeline: (params) => requestAllPages('/innovation-pipeline', params),
+  facultyPerformance: (params) => requestAllPages('/faculty-performance', params),
+  departmentPerformance: (params) => requestAllPages('/department-performance', params),
+  schoolPerformance: (params) => requestAllPages('/school-performance', params),
+  teachingResearchBalance: (params) => requestAllPages('/teaching-research-balance', params),
+  appraisalCompletion: (params) => requestAllPages('/appraisal-completion', params),
   exportUrl: (params = {}) => {
     return buildUrl('/export', params).toString()
   },

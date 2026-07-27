@@ -19,16 +19,23 @@ from app.utils.export_utils import rows_to_csv
 router = APIRouter(prefix="/api/v1/analytics/research", tags=["Faculty Research Analytics"])
 
 
-def sanitize_filter_value(val: Optional[str]) -> Optional[str]:
-    """Sanitize filter inputs so 'All Schools', 'All Departments', etc. map to None (no filter)."""
-    if not val:
+def clean_filter(value: Optional[str]) -> Optional[str]:
+    """Server-side filter sanitizer to ensure default 'All ...' filters map to None (unfiltered)."""
+    if value is None:
         return None
-    v = str(val).strip()
-    if v.lower() in ("all", "all schools", "all departments", "all designations", "all years", "all categories", "all indexing", "none", "null", ""):
+    val_str = str(value).strip()
+    if not val_str:
         return None
-    if v.lower().startswith("all "):
+    val_lower = val_str.lower()
+    if val_lower in {
+        "all", "none", "null", "undefined", "",
+        "all schools", "all departments", "all years",
+        "all designations", "all categories", "all indexing"
+    }:
         return None
-    return v
+    if val_lower.startswith("all "):
+        return None
+    return val_str
 
 
 def query_filters(
@@ -48,21 +55,21 @@ def query_filters(
     date_to: Optional[str] = Query(None, description="Date to"),
 ) -> dict[str, Any]:
     return {
-        "academic_year": sanitize_filter_value(academic_year),
-        "school": sanitize_filter_value(school),
-        "department": sanitize_filter_value(department),
-        "designation": sanitize_filter_value(designation),
-        "faculty_email": sanitize_filter_value(faculty),
-        "faculty": sanitize_filter_value(faculty),
-        "category": sanitize_filter_value(category),
-        "indexing": sanitize_filter_value(indexing),
-        "status": sanitize_filter_value(status),
-        "agency": sanitize_filter_value(agency),
-        "search": sanitize_filter_value(search),
-        "sort_by": sanitize_filter_value(sort_by),
+        "academic_year": clean_filter(academic_year),
+        "school": clean_filter(school),
+        "department": clean_filter(department),
+        "designation": clean_filter(designation),
+        "faculty_email": clean_filter(faculty),
+        "faculty": clean_filter(faculty),
+        "category": clean_filter(category),
+        "indexing": clean_filter(indexing),
+        "status": clean_filter(status),
+        "agency": clean_filter(agency),
+        "search": clean_filter(search),
+        "sort_by": clean_filter(sort_by),
         "sort_order": sort_order,
-        "date_from": sanitize_filter_value(date_from),
-        "date_to": sanitize_filter_value(date_to),
+        "date_from": clean_filter(date_from),
+        "date_to": clean_filter(date_to),
     }
 
 
@@ -105,6 +112,15 @@ def health_status(
         "slowest_recent_endpoint": h_stats.get("slowest_recent_endpoint") or "none",
         "last_materialized_view_refresh": h_stats.get("last_materialized_view_refresh") or "none",
     }
+
+
+@router.get("/debug-counts")
+def debug_counts(
+    metric: str = Query("patents", description="Metric to inspect: patents, journals, books, projects"),
+    service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service),
+):
+    """Debug endpoint verifying consistency between All Schools total and individual school counts."""
+    return service.repository.debug_counts(metric)
 
 
 @router.post("/refresh-materialized-views", status_code=status.HTTP_200_OK)
@@ -155,7 +171,7 @@ def refresh_materialized_views(
 
 
 # -----------------------------------------------------------------------------
-# 3. DETAILED ENDPOINTS (PRESERVED & OPTIMIZED FOR FRONTEND COMPATIBILITY)
+# 3. DETAILED ENDPOINTS (WITH PRE-PAGINATION SUMMARY METRICS)
 # -----------------------------------------------------------------------------
 @router.get("/overview", response_model=ResearchOverview)
 def overview(filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):

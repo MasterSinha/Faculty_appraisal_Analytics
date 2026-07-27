@@ -110,6 +110,7 @@ class PaginatedResponse(BaseModel):
     page_size: int = 20
     total: int = 0
     total_pages: int = 0
+    summary: Optional[dict[str, Any]] = None
     meta: Optional[MetaResponse] = None
 
 

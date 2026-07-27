@@ -3,9 +3,10 @@ import unittest
 from sqlalchemy import Boolean, Column, Float, Integer, MetaData, String, Table, create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.core.cache import clear_cache
 from app.database import get_db
 from app.main import app
-from app.repositories.faculty_research_analytics_repository import FacultyResearchAnalyticsRepository
+from app.repositories.faculty_research_analytics_repository import FacultyResearchAnalyticsRepository, clean_filter, valid_condition_for_table
 from app.services.faculty_research_analytics_service import FacultyResearchAnalyticsService
 
 
@@ -39,6 +40,7 @@ class TestBackendArchitecture(unittest.TestCase):
             Column("publisher", String),
             Column("isbn", String),
             Column("role", String),
+            Column("academic_year", String),
             Column("publication_year", Integer),
             Column("score", Float),
             Column("vc_score", Float),
@@ -52,6 +54,7 @@ class TestBackendArchitecture(unittest.TestCase):
             Column("title", String),
             Column("journal_name", String),
             Column("indexing", String),
+            Column("academic_year", String),
             Column("publication_year", Integer),
             Column("vc_score", Float),
             Column("self_score", Float),
@@ -105,6 +108,7 @@ class TestBackendArchitecture(unittest.TestCase):
             Column("id", Integer, primary_key=True),
             Column("faculty_email", String),
             Column("student_name", String),
+            Column("academic_year", String),
         )
 
         conferences = Table(
@@ -113,6 +117,7 @@ class TestBackendArchitecture(unittest.TestCase):
             Column("id", Integer, primary_key=True),
             Column("faculty_email", String),
             Column("title", String),
+            Column("academic_year", String),
         )
 
         awards = Table(
@@ -121,6 +126,7 @@ class TestBackendArchitecture(unittest.TestCase):
             Column("id", Integer, primary_key=True),
             Column("faculty_email", String),
             Column("title", String),
+            Column("academic_year", String),
         )
 
         products = Table(
@@ -129,6 +135,7 @@ class TestBackendArchitecture(unittest.TestCase):
             Column("id", Integer, primary_key=True),
             Column("faculty_email", String),
             Column("details", String),
+            Column("academic_year", String),
         )
 
         patents = Table(
@@ -143,6 +150,15 @@ class TestBackendArchitecture(unittest.TestCase):
             Column("academic_year", String),
             Column("score", Float),
             Column("vc_score", Float),
+        )
+
+        ipr = Table(
+            "ipr_records",
+            metadata,
+            Column("id", Integer, primary_key=True),
+            Column("faculty_email", String),
+            Column("title", String),
+            Column("academic_year", String),
         )
 
         metadata.create_all(cls.engine)
@@ -187,6 +203,7 @@ class TestBackendArchitecture(unittest.TestCase):
                     "title": "Deep Learning Optimization",
                     "journal_name": "IEEE Transactions",
                     "indexing": "SCI",
+                    "academic_year": "2023-24",
                     "publication_year": 2024,
                     "vc_score": 10.0,
                     "score": 10.0,
@@ -205,6 +222,7 @@ class TestBackendArchitecture(unittest.TestCase):
                     "publisher": "Springer",
                     "isbn": "978-3-16-148410-0",
                     "role": "First Author",
+                    "academic_year": "2023-24",
                     "publication_year": 2024,
                     "score": 15.0,
                     "vc_score": 15.0,
@@ -253,7 +271,22 @@ class TestBackendArchitecture(unittest.TestCase):
         cls.faculty_repo = FacultyResearchAnalyticsRepository(cls.session)
         cls.faculty_service = FacultyResearchAnalyticsService(cls.session)
 
+    def test_clean_filter_sanitization(self):
+        self.assertIsNone(clean_filter("All Schools"))
+        self.assertIsNone(clean_filter("All Departments"))
+        self.assertIsNone(clean_filter("All Years"))
+        self.assertIsNone(clean_filter("all"))
+        self.assertIsNone(clean_filter(""))
+        self.assertIsNone(clean_filter("undefined"))
+        self.assertEqual(clean_filter("School of Engineering"), "School of Engineering")
+
+    def test_valid_condition_helper(self):
+        self.assertIn("title", valid_condition_for_table("t", "journal_publications"))
+        self.assertIn("book", valid_condition_for_table("t", "book_publications"))
+        self.assertIn("title", valid_condition_for_table("t", "patents"))
+
     def test_dashboard_summary_structure(self):
+        clear_cache()
         dash = self.faculty_repo.dashboard_summary({})
         self.assertIn("overview", dash)
         self.assertIn("kpis", dash)
@@ -271,25 +304,40 @@ class TestBackendArchitecture(unittest.TestCase):
         self.assertFalse(dash["meta"]["cached"])
 
     def test_dashboard_caching_and_refresh(self):
-        # 1st call -> uncached
+        clear_cache()
         res1 = self.faculty_repo.dashboard_summary({"school": "School of Engineering"})
         self.assertFalse(res1["meta"]["cached"])
 
-        # 2nd call -> cached hit
         res2 = self.faculty_repo.dashboard_summary({"school": "School of Engineering"})
         self.assertTrue(res2["meta"]["cached"])
 
-        # 3rd call with refresh=True -> bypass cache
         res3 = self.faculty_repo.dashboard_summary({"school": "School of Engineering"}, refresh=True)
         self.assertFalse(res3["meta"]["cached"])
 
-    def test_health_check(self):
-        health = self.faculty_service.repository.db.execute
-        self.assertIsNotNone(health)
+    def test_all_schools_consistency(self):
+        clear_cache()
+        dash_all = self.faculty_repo.dashboard_summary({"school": "All Schools"}, refresh=True)
+        dash_single = self.faculty_repo.dashboard_summary({"school": "School of Engineering"}, refresh=True)
 
-    def test_filtered_dashboard(self):
-        dash = self.faculty_repo.dashboard_summary({"department": "Computer Science"}, refresh=True)
-        self.assertEqual(dash["meta"]["filters_applied"]["department"], "Computer Science")
+        all_patents = dash_all["overview"]["total_patents"]
+        single_patents = dash_single["overview"]["total_patents"]
+
+        self.assertGreaterEqual(all_patents, single_patents)
+
+    def test_pagination_unpaginated_summary(self):
+        p10 = self.faculty_repo.category_records("patents", {}, 1, 10)
+        p1 = self.faculty_repo.category_records("patents", {}, 1, 1)
+
+        self.assertIn("summary", p10)
+        self.assertEqual(p10["summary"]["total_valid_patents"], p1["summary"]["total_valid_patents"])
+
+    def test_debug_counts_all_metrics(self):
+        for m in ("patents", "journals", "books", "projects"):
+            dbg = self.faculty_repo.debug_counts(m)
+            self.assertIn("all_schools_total", dbg)
+            self.assertIn("by_school", dbg)
+            self.assertTrue(dbg["is_consistent"])
+            self.assertTrue(dbg["dashboard_matches_detail"])
 
 
 if __name__ == "__main__":
