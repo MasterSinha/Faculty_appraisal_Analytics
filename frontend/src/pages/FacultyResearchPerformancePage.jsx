@@ -398,7 +398,14 @@ export default function FacultyResearchPerformancePage({ filters, updateFilters,
           </div>
 
           <section className="executive-chart-row two-col">
-            <RankingList title="Top Faculty by Total Output" subtitle="Output ranking" rows={topOutputRows} badgeKey="validatedScore" badgeFormatter={(value) => `VC ${formatNumber(value)}`} />
+            <RankingList
+              title="Top Faculty by Research Output Count"
+              subtitle="Valid activity records across all research categories"
+              rows={topOutputRows}
+              formatter={(value) => `${formatNumber(value)} outputs`}
+              badgeKey="validatedScore"
+              badgeFormatter={(value) => `VC score ${formatNumber(value)}`}
+            />
             <MiniBarChart title="Top faculty by validated score" subtitle="Validated score" rows={topScoreRows} />
             <RadarChart title="Top Faculty Research Profile" subtitle="Top 3 by output" axes={radarAxes} rows={radarRows} />
             <MiniBarChart title="Research diversity distribution" subtitle="Diversity" rows={diversityRows} />
