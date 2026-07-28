@@ -102,13 +102,15 @@ class PaginatedFacultyPatentResponse(BaseModel):
 
 
 class PatentRecordItem(BaseModel):
-    id: Any
+    id: Optional[Any] = None
     faculty_email: Optional[str] = None
     faculty_name: Optional[str] = None
     employee_id: Optional[str] = None
     department: Optional[str] = None
     school: Optional[str] = None
+    designation: Optional[str] = None
     title: Optional[str] = None
+    patent_title: Optional[str] = None
     type: Optional[str] = None
     scope: Optional[str] = None
     normalized_scope: str = "Unknown"
@@ -116,6 +118,8 @@ class PatentRecordItem(BaseModel):
     patent_status: Optional[str] = None
     normalized_status: str = "Unknown"
     file_no: Optional[str] = None
+    file_number: Optional[str] = None
+    status: Optional[str] = None
     academic_year: Optional[Any] = None
     score: float = 0.0
     hod_score: float = 0.0
@@ -124,6 +128,11 @@ class PatentRecordItem(BaseModel):
     vc_score: float = 0.0
     final_validated_score: float = 0.0
     flags: List[str] = Field(default_factory=list)
+    dedupe_key: Optional[str] = None
+    record_count: Optional[int] = None
+    faculty_count: Optional[int] = None
+    contributors: Optional[List[Dict[str, Any]]] = None
+    is_duplicate_group: Optional[bool] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -132,7 +141,9 @@ class PaginatedPatentRecordResponse(BaseModel):
     total: int = 0
     page: int = 1
     page_size: int = 20
+    total_pages: int = 0
     items: List[PatentRecordItem] = Field(default_factory=list)
+    summary: Optional[Dict[str, Any]] = None
 
     model_config = ConfigDict(from_attributes=True)
 

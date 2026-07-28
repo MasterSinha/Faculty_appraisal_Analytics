@@ -17,6 +17,15 @@ from app.core.cache import (
     set_cache,
     update_last_refresh_timestamp,
 )
+from app.utils.deduplication import (
+    get_book_dedupe_key,
+    get_document_dedupe_key,
+    get_ipr_dedupe_key,
+    get_journal_dedupe_key,
+    get_patent_dedupe_key,
+    get_project_dedupe_key,
+    group_records_by_key,
+)
 
 logger = logging.getLogger("analytics.repository")
 
@@ -831,24 +840,11 @@ class FacultyResearchAnalyticsRepository:
         }
 
     def category_records(self, table: str, filters: dict[str, Any], page: int, page_size: int) -> dict[str, Any]:
-        """Paginated records for specific research category with pre-pagination summary calculation."""
+        """Paginated records for specific research category with duplicate-aware grouping and pre-pagination summary calculation."""
         try:
             tbl_cols = self._get_table_columns(table)
             where, params = self._where(filters, alias="fp", activity_alias="t")
-            params["limit"] = page_size
-            params["offset"] = (page - 1) * page_size
 
-            sort_by_param = (filters.get("sort_by") or "").strip().lower()
-            sort_col = "id"
-            if sort_by_param and sort_by_param in tbl_cols:
-                sort_col = sort_by_param
-            else:
-                for candidate in ("academic_year", "publication_year", "year", "created_at", "id"):
-                    if candidate in tbl_cols:
-                        sort_col = candidate
-                        break
-
-            sort_order = "DESC" if (filters.get("sort_order") or "desc").lower() == "desc" else "ASC"
             valid_clause = valid_condition_for_table("t", table)
 
             search_clause = ""
@@ -865,16 +861,8 @@ class FacultyResearchAnalyticsRepository:
                     search_clause = " AND LOWER(fp.full_name) LIKE :search "
                 params["search"] = f"%{filters['search'].lower()}%"
 
-            # 1. Unpaginated total count
-            count_sql = text(f"""
-                SELECT COUNT(*) FROM {table} t
-                JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
-                WHERE fp.is_active = TRUE AND {valid_clause} {where} {search_clause}
-            """)
-            total = int(self.db.execute(count_sql, params).scalar() or 0)
-
-            # 2. Paginated items
-            sql = text(f"""
+            # 1. Fetch all raw rows for this category matching filters
+            sql_all = text(f"""
                 SELECT t.*, fp.full_name, fp.employee_id,
                        COALESCE(NULLIF(TRIM(fp.school), ''), 'Unassigned') AS school,
                        COALESCE(NULLIF(TRIM(fp.department), ''), COALESCE(NULLIF(TRIM(fp.school), ''), 'Unassigned') || ' (No department mapped)') AS department,
@@ -882,17 +870,62 @@ class FacultyResearchAnalyticsRepository:
                 FROM {table} t
                 JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
                 WHERE fp.is_active = TRUE AND {valid_clause} {where} {search_clause}
-                ORDER BY t.{sort_col} {sort_order}
-                LIMIT :limit OFFSET :offset
             """)
-            rows = self.db.execute(sql, params).mappings()
-            items = [dict(row) for row in rows]
+            raw_rows = [dict(r) for r in self.db.execute(sql_all, params).mappings()]
 
-            # 3. Calculate category summary BEFORE pagination
-            summary = self._calculate_table_summary(table, filters, total)
+            # Determine key function & category name
+            if table in ("journal_publications", "journals"):
+                key_fn, cat_name = get_journal_dedupe_key, "publication"
+            elif table in ("patents",):
+                key_fn, cat_name = get_patent_dedupe_key, "patent"
+            elif table in ("book_publications", "books"):
+                key_fn, cat_name = get_book_dedupe_key, "book"
+            elif table in ("ipr_records", "ipr"):
+                key_fn, cat_name = get_ipr_dedupe_key, "ipr"
+            elif table in ("research_projects", "projects", "external_research_projects"):
+                key_fn, cat_name = get_project_dedupe_key, "project"
+            else:
+                key_fn, cat_name = lambda r: str(r.get("id") or ""), table
+
+            grouped_items, dedupe_metrics = group_records_by_key(raw_rows, key_fn, cat_name)
+
+            view = str(filters.get("view") or "grouped").lower().strip()
+            if view == "raw":
+                target_items = raw_rows
+            else:
+                target_items = grouped_items
+
+            # Sorting
+            sort_by_param = (filters.get("sort_by") or "").strip().lower()
+            sort_order = "DESC" if (filters.get("sort_order") or "desc").lower() == "desc" else "ASC"
+            reverse = (sort_order == "DESC")
+
+            first_sample = target_items[0] if target_items else {}
+            if sort_by_param and sort_by_param in first_sample:
+                sort_col = sort_by_param
+            else:
+                sort_col = "id"
+                for candidate in ("academic_year", "publication_year", "year", "created_at", "id"):
+                    if candidate in first_sample:
+                        sort_col = candidate
+                        break
+
+            numeric_sort_fields = ["id", "score", "hod_score", "director_score", "dean_score", "vc_score", "final_validated_score", "amount", "record_count", "faculty_count"]
+            if sort_col in numeric_sort_fields:
+                target_items.sort(key=lambda x: float(x.get(sort_col) or 0.0), reverse=reverse)
+            else:
+                target_items.sort(key=lambda x: str(x.get(sort_col) or "").lower(), reverse=reverse)
+
+            total = len(target_items)
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            paginated_items = target_items[start_idx:end_idx]
+
+            summary = self._calculate_table_summary(table, filters, len(raw_rows))
+            summary.update(dedupe_metrics)
 
             return {
-                "items": items,
+                "items": paginated_items,
                 "page": page,
                 "page_size": page_size,
                 "total": total,
@@ -910,6 +943,55 @@ class FacultyResearchAnalyticsRepository:
                 "total_pages": 0,
                 "summary": {},
             }
+
+    def duplicates(self, filters: dict[str, Any]) -> dict[str, Any]:
+        """GET /api/v1/analytics/research/duplicates returning duplicate groups across all research categories."""
+        category_specs = [
+            ("journal_publications", get_journal_dedupe_key, "publication"),
+            ("book_publications", get_book_dedupe_key, "book"),
+            ("patents", get_patent_dedupe_key, "patent"),
+            ("ipr_records", get_ipr_dedupe_key, "ipr"),
+            ("research_projects", get_project_dedupe_key, "project"),
+            ("appraisal_documents", get_document_dedupe_key, "document"),
+        ]
+
+        res = {}
+        for table_name, key_fn, cat_name in category_specs:
+            try:
+                where, params = self._where(filters, alias="fp", activity_alias="t")
+                valid_clause = valid_condition_for_table("t", table_name)
+                
+                tbl_cols = self._get_table_columns(table_name)
+                if not tbl_cols:
+                    res[table_name] = {"duplicate_groups_count": 0, "duplicate_records_count": 0, "groups": []}
+                    continue
+
+                sql = text(f"""
+                    SELECT t.*, fp.full_name, fp.employee_id,
+                           COALESCE(NULLIF(TRIM(fp.school), ''), 'Unassigned') AS school,
+                           COALESCE(NULLIF(TRIM(fp.department), ''), COALESCE(NULLIF(TRIM(fp.school), ''), 'Unassigned') || ' (No department mapped)') AS department,
+                           fp.designation
+                    FROM {table_name} t
+                    JOIN faculty_profiles fp ON LOWER(TRIM(fp.email)) = LOWER(TRIM(t.faculty_email))
+                    WHERE fp.is_active = TRUE AND {valid_clause} {where}
+                """)
+                raw_rows = [dict(r) for r in self.db.execute(sql, params).mappings()]
+                grouped_items, dedupe_metrics = group_records_by_key(raw_rows, key_fn, cat_name)
+                
+                dup_groups = [item for item in grouped_items if item.get("is_duplicate_group")]
+                dup_recs_count = sum(item.get("record_count", 1) for item in dup_groups)
+
+                res[table_name] = {
+                    "duplicate_groups_count": len(dup_groups),
+                    "duplicate_records_count": dup_recs_count,
+                    "groups": dup_groups,
+                }
+            except Exception as ex:
+                self.db.rollback()
+                logger.warning("Could not fetch duplicates for %s: %s", table_name, ex)
+                res[table_name] = {"duplicate_groups_count": 0, "duplicate_records_count": 0, "groups": []}
+
+        return res
 
     def _calculate_table_summary(self, table: str, filters: dict[str, Any], total: int) -> dict[str, Any]:
         """Calculate unpaginated summary metrics before applying offset and limit pagination."""

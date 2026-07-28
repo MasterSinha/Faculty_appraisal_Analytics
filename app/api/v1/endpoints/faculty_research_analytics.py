@@ -60,6 +60,7 @@ def query_filters(
     sort_order: Optional[str] = Query("desc", description="Sort order: asc or desc"),
     date_from: Optional[str] = Query(None, description="Date from"),
     date_to: Optional[str] = Query(None, description="Date to"),
+    view: Optional[str] = Query("grouped", description="View mode: grouped or raw"),
 ) -> dict[str, Any]:
     return {
         "academic_year": clean_filter(academic_year),
@@ -77,6 +78,7 @@ def query_filters(
         "sort_order": sort_order,
         "date_from": clean_filter(date_from),
         "date_to": clean_filter(date_to),
+        "view": clean_filter(view) or "grouped",
     }
 
 
@@ -250,6 +252,11 @@ def insights(filters: dict[str, Any] = Depends(query_filters), _: dict = Depends
 @router.get("/data-quality")
 def data_quality(filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
     return service.data_quality(filters)
+
+
+@router.get("/duplicates")
+def duplicates(filters: dict[str, Any] = Depends(query_filters), _: dict = Depends(require_analytics_role), service: FacultyResearchAnalyticsService = Depends(get_faculty_research_analytics_service)):
+    return service.duplicates(filters)
 
 
 @router.get("/filters")

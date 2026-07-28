@@ -91,11 +91,13 @@ def get_quality_indexing(
 def get_records(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    view: str = Query("grouped", description="View mode: grouped or raw"),
     filters: dict = Depends(get_global_filters),
     _: dict = Depends(require_analytics_role),
     service: JournalsAnalyticsService = Depends(get_journals_analytics_service),
 ):
     """5. Paginated Journal Publication Records with final_validated_score COALESCE."""
+    filters = {**filters, "view": view}
     return service.records(page, page_size, filters)
 
 

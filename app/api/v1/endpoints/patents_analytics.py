@@ -96,11 +96,13 @@ def get_faculty(
 def get_records_patents(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    view: str = Query("grouped", description="View mode: grouped or raw"),
     filters: dict = Depends(get_global_filters),
     _: dict = Depends(require_analytics_role),
     service: PatentsAnalyticsService = Depends(get_patents_analytics_service),
 ):
     """5. Paginated Patent Records with final_validated_score COALESCE."""
+    filters = {**filters, "view": view}
     return service.records_patents(page, page_size, filters)
 
 

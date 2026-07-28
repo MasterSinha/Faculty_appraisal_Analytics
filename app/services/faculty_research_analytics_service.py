@@ -65,5 +65,8 @@ class FacultyResearchAnalyticsService:
     def data_quality(self, filters: dict[str, Any]) -> dict[str, Any]:
         return self.repository.data_quality(filters)
 
+    def duplicates(self, filters: dict[str, Any]) -> dict[str, Any]:
+        return self.repository.duplicates(filters)
+
     def filters(self) -> dict[str, Any]:
         return self.repository.filters()

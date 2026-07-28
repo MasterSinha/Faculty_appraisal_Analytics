@@ -440,6 +440,117 @@ class TestBackendArchitecture(unittest.TestCase):
         dash = self.faculty_repo.dashboard_summary({}, refresh=True)
         self.assertIn("overview", dash)
 
+    def test_deduplication_and_duplicate_aware_analytics(self):
+        from app.utils.deduplication import (
+            get_book_dedupe_key,
+            get_document_dedupe_key,
+            get_ipr_dedupe_key,
+            get_journal_dedupe_key,
+            get_patent_dedupe_key,
+            group_records_by_key,
+        )
+
+        sample_journals = [
+            {
+                "id": 101,
+                "title": "Impact of AI on Education",
+                "journal": "IEEE Transactions",
+                "issn": "1234-5678",
+                "academic_year": "2025-2026",
+                "faculty_email": "alice@university.edu",
+                "faculty_name": "Dr. Alice Smith",
+                "department": "Mechanical Engineering",
+                "school": "SoEMR",
+                "updated_at": "2026-01-01 10:00:00",
+                "created_at": "2026-01-01 09:00:00",
+                "final_validated_score": 20.0,
+            },
+            {
+                "id": 102,
+                "title": "Impact of AI on Education",
+                "journal": "IEEE Transactions",
+                "issn": "1234-5678",
+                "academic_year": "2025-2026",
+                "faculty_email": "alice@university.edu",
+                "faculty_name": "Dr. Alice Smith",
+                "department": "Mechanical Engineering",
+                "school": "SoEMR",
+                "updated_at": "2026-02-01 10:00:00",
+                "created_at": "2026-01-01 09:00:00",
+                "final_validated_score": 20.0,
+            },
+            {
+                "id": 103,
+                "title": "Impact of AI on Education",
+                "journal": "IEEE Transactions",
+                "issn": "1234-5678",
+                "academic_year": "2025-2026",
+                "faculty_email": "bob@university.edu",
+                "faculty_name": "Dr. Bob Jones",
+                "department": "Mechanical Engineering",
+                "school": "SoEMR",
+                "updated_at": "2026-01-15 10:00:00",
+                "created_at": "2026-01-01 09:00:00",
+                "final_validated_score": 20.0,
+            },
+        ]
+
+        # 1. Grouped journals test (Same faculty duplicate + multiple faculty same paper)
+        grouped, metrics = group_records_by_key(sample_journals, get_journal_dedupe_key, "publication")
+        self.assertEqual(len(grouped), 1)
+        group_item = grouped[0]
+        self.assertEqual(group_item["record_count"], 3)
+        self.assertEqual(group_item["faculty_count"], 2)
+        self.assertTrue(group_item["is_duplicate_group"])
+        self.assertEqual(len(group_item["contributors"]), 2)
+        # Representative selection prefers newest updated_at (2026-02-01) -> id 102
+        self.assertEqual(group_item["id"], 102)
+        self.assertEqual(metrics["raw_filtered_count"], 3)
+        self.assertEqual(metrics["grouped_filtered_count"], 1)
+        self.assertEqual(metrics["duplicate_groups_count"], 1)
+        self.assertEqual(metrics["duplicate_rows_removed"], 2)
+
+        # 2. Missing ISSN / null / blank fallback test does not crash
+        no_issn_pubs = [
+            {"title": None, "journal": "", "issn": None, "academic_year": None, "faculty_email": None},
+            {"title": "Quantum Computing 2026", "journal": "Nature Physics", "issn": "", "academic_year": "2025-2026", "faculty_email": "bob@university.edu"},
+        ]
+        key1 = get_journal_dedupe_key(no_issn_pubs[0])
+        key2 = get_journal_dedupe_key(no_issn_pubs[1])
+        self.assertIn("unknown_title", key1)
+        self.assertIn("no_issn", key2)
+
+        # 3. Patent file number match test
+        patents = [
+            {"file_number": "PAT-2026-999", "title": "Smart Solar Panel", "academic_year": "2025-2026", "faculty_email": "alice@university.edu"},
+            {"file_number": "PAT-2026-999", "title": "Smart Solar Panel System", "academic_year": "2025-2026", "faculty_email": "bob@university.edu"},
+        ]
+        pkey1 = get_patent_dedupe_key(patents[0])
+        pkey2 = get_patent_dedupe_key(patents[1])
+        self.assertEqual(pkey1, pkey2)
+        self.assertEqual(pkey1, "file_no:pat-2026-999")
+
+        # 4. Filter first, then group test
+        res_soemr = self.faculty_repo.category_records("journal_publications", {"school": "SoEMR", "view": "grouped"}, 1, 100)
+        self.assertIn("summary", res_soemr)
+        self.assertIn("grouped_filtered_count", res_soemr["summary"])
+
+        # 5. Group first, then paginate test
+        res_p1 = self.faculty_repo.category_records("journal_publications", {"view": "grouped"}, 1, 1)
+        self.assertEqual(res_p1["page"], 1)
+        self.assertEqual(res_p1["page_size"], 1)
+        self.assertEqual(len(res_p1["items"]), 1 if res_p1["total"] > 0 else 0)
+
+        # 6. All Schools total >= individual school total test
+        res_all_schools = self.faculty_repo.category_records("journal_publications", {"school": "All Schools", "view": "grouped"}, 1, 100)
+        self.assertGreaterEqual(res_all_schools["total"], res_soemr["total"])
+
+        # 7. Duplicates API endpoint test
+        dup_res = self.faculty_repo.duplicates({})
+        self.assertIn("journal_publications", dup_res)
+        self.assertIn("patents", dup_res)
+        self.assertIn("duplicate_groups_count", dup_res["journal_publications"])
+
 
 if __name__ == "__main__":
     unittest.main()

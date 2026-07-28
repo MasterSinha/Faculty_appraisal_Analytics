@@ -16,6 +16,11 @@ class OverviewAnalyticsResponse(BaseModel):
     unique_journal_count: int = 0
     duplicate_title_count: int = 0
     same_title_multiple_faculty_count: int = 0
+    total_publication_submissions_raw: int = 0
+    total_distinct_publications: int = 0
+    total_distinct_faculty_publication_credits: int = 0
+    duplicate_publication_groups: int = 0
+    duplicate_publication_rows: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -112,7 +117,7 @@ class QualityIndexingAnalyticsResponse(BaseModel):
 
 
 class JournalRecordItem(BaseModel):
-    id: Any
+    id: Optional[Any] = None
     faculty_email: Optional[str] = None
     faculty_name: Optional[str] = None
     employee_id: Optional[str] = None
@@ -130,6 +135,11 @@ class JournalRecordItem(BaseModel):
     dean_score: float = 0.0
     vc_score: float = 0.0
     final_validated_score: float = 0.0
+    dedupe_key: Optional[str] = None
+    record_count: Optional[int] = None
+    faculty_count: Optional[int] = None
+    contributors: Optional[List[Dict[str, Any]]] = None
+    is_duplicate_group: Optional[bool] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -138,7 +148,9 @@ class PaginatedJournalRecordResponse(BaseModel):
     total: int = 0
     page: int = 1
     page_size: int = 20
+    total_pages: int = 0
     items: List[JournalRecordItem] = Field(default_factory=list)
+    summary: Optional[Dict[str, Any]] = None
 
     model_config = ConfigDict(from_attributes=True)
 

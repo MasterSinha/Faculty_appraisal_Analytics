@@ -13,7 +13,9 @@ from app.core.constants import (
     TITLE_COLUMNS,
     YEAR_COLUMNS,
 )
+from math import ceil
 from app.models.schema_reflector import SchemaReflector
+from app.utils.deduplication import get_patent_dedupe_key, group_records_by_key
 
 
 def normalize_status(raw_status: Optional[str]) -> str:
@@ -732,28 +734,38 @@ class PatentsAnalyticsRepository:
     def records_patents(self, page: int, page_size: int, filters: Dict[str, Any]) -> Dict[str, Any]:
         """Endpoint 5: GET /records/patents"""
         rows = self._get_filtered_patents(filters)
+        view = str(filters.get("view") or "grouped").lower().strip()
+
+        grouped_items, dedupe_metrics = group_records_by_key(rows, get_patent_dedupe_key, "patent")
+
+        if view == "raw":
+            target_items = rows
+        else:
+            target_items = grouped_items
 
         sort_by = filters.get("sort_by") or "title"
         sort_order = (filters.get("sort_order") or "desc").lower()
         reverse = (sort_order == "desc")
 
-        numeric_sort_fields = ["id", "score", "hod_score", "director_score", "dean_score", "vc_score", "final_validated_score"]
+        numeric_sort_fields = ["id", "score", "hod_score", "director_score", "dean_score", "vc_score", "final_validated_score", "record_count", "faculty_count"]
 
         if sort_by in numeric_sort_fields:
-            rows.sort(key=lambda x: float(x.get(sort_by) or 0.0), reverse=reverse)
+            target_items.sort(key=lambda x: float(x.get(sort_by) or 0.0), reverse=reverse)
         else:
-            rows.sort(key=lambda x: str(x.get(sort_by) or "").lower(), reverse=reverse)
+            target_items.sort(key=lambda x: str(x.get(sort_by) or "").lower(), reverse=reverse)
 
-        total_recs = len(rows)
+        total_recs = len(target_items)
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
-        paginated_items = rows[start_idx:end_idx]
+        paginated_items = target_items[start_idx:end_idx]
 
         return {
+            "items": paginated_items,
             "total": total_recs,
             "page": page,
             "page_size": page_size,
-            "items": paginated_items,
+            "total_pages": ceil(total_recs / page_size) if total_recs > 0 else 0,
+            "summary": dedupe_metrics,
         }
 
     def records_ipr(self, page: int, page_size: int, filters: Dict[str, Any]) -> Dict[str, Any]:

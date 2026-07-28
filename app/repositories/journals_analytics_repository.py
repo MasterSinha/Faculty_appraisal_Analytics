@@ -15,6 +15,7 @@ from app.core.constants import (
     YEAR_COLUMNS,
 )
 from app.models.schema_reflector import SchemaReflector
+from app.utils.deduplication import get_journal_dedupe_key, group_records_by_key
 
 
 def parse_numeric_year(year_val: Any) -> Optional[int]:
@@ -283,6 +284,8 @@ class JournalsAnalyticsRepository:
         duplicate_title_count = sum(1 for t, count in title_counts.items() if count > 1)
         same_title_multiple_faculty_count = sum(1 for t, fac_set in title_faculty_map.items() if len(fac_set) > 1)
 
+        _, dedupe_metrics = group_records_by_key(joined_rows, get_journal_dedupe_key, "publication")
+
         return {
             "total_valid_journal_publications": total_valid_journal_publications,
             "publishing_faculty": publishing_faculty,
@@ -297,6 +300,11 @@ class JournalsAnalyticsRepository:
             "unique_journal_count": unique_journal_count,
             "duplicate_title_count": duplicate_title_count,
             "same_title_multiple_faculty_count": same_title_multiple_faculty_count,
+            "total_publication_submissions_raw": dedupe_metrics["total_publication_submissions_raw"],
+            "total_distinct_publications": dedupe_metrics["total_distinct_publications"],
+            "total_distinct_faculty_publication_credits": dedupe_metrics["total_distinct_faculty_publication_credits"],
+            "duplicate_publication_groups": dedupe_metrics["duplicate_publication_groups"],
+            "duplicate_publication_rows": dedupe_metrics["duplicate_publication_rows"],
         }
 
     def departments(self, page: int, page_size: int, filters: Dict[str, Any]) -> Dict[str, Any]:
@@ -656,28 +664,38 @@ class JournalsAnalyticsRepository:
         """Endpoint 5: GET /records"""
         joined_rows = self._get_filtered_joined_rows(filters)
 
+        view = (filters.get("view") or "grouped").lower().strip()
+        grouped_items, dedupe_metrics = group_records_by_key(joined_rows, get_journal_dedupe_key, "publication")
+
+        if view == "raw":
+            target_items = joined_rows
+        else:
+            target_items = grouped_items
+
         # Sorting
         sort_by = filters.get("sort_by") or "title"
         sort_order = (filters.get("sort_order") or "desc").lower()
         reverse = (sort_order == "desc")
 
-        numeric_sort_fields = ["id", "score", "hod_score", "director_score", "dean_score", "vc_score", "final_validated_score"]
+        numeric_sort_fields = ["id", "score", "hod_score", "director_score", "dean_score", "vc_score", "final_validated_score", "record_count", "faculty_count"]
 
         if sort_by in numeric_sort_fields:
-            joined_rows.sort(key=lambda x: float(x.get(sort_by) or 0.0), reverse=reverse)
+            target_items.sort(key=lambda x: float(x.get(sort_by) or 0.0), reverse=reverse)
         else:
-            joined_rows.sort(key=lambda x: str(x.get(sort_by) or "").lower(), reverse=reverse)
+            target_items.sort(key=lambda x: str(x.get(sort_by) or "").lower(), reverse=reverse)
 
-        total_recs = len(joined_rows)
+        total_recs = len(target_items)
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
-        paginated_items = joined_rows[start_idx:end_idx]
+        paginated_items = target_items[start_idx:end_idx]
 
         return {
             "total": total_recs,
             "page": page,
             "page_size": page_size,
+            "total_pages": ceil(total_recs / page_size) if total_recs > 0 else 0,
             "items": paginated_items,
+            "summary": dedupe_metrics,
         }
 
     def faculty_detail(self, faculty_email: str) -> Dict[str, Any]:
